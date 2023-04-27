@@ -9,8 +9,8 @@ public class MinecraftConnection implements Connection {
     }
 
     @Override
-    public String getType() {
-        return null;
+    public Type getType() {
+        return Type.MINECRAFT_USER;
     }
 
     public String getUuid() {

@@ -2,17 +2,17 @@ package nl.gjorgdy.objects.connections;
 
 import net.dv8tion.jda.api.entities.User;
 
-public class DiscordConnection implements Connection {
+public class DiscordUserConnection implements Connection {
 
     private final User discordUser;
 
-    public DiscordConnection(User discordUser) {
+    public DiscordUserConnection(User discordUser) {
         this.discordUser = discordUser;
     }
 
     @Override
-    public String getType() {
-        return "discord";
+    public Type getType() {
+        return Type.DISCORD_USER;
     }
 
     public User getDiscordUser() {

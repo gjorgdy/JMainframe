@@ -5,9 +5,11 @@ import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.entities.Activity;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.List;
 
-public class Discord {
+public class Discord extends Thread {
 
     private final JDABuilder builder;
     private JDA bot;
@@ -18,10 +20,14 @@ public class Discord {
         builder.setActivity(Activity.watching("Hexasis"));
         builder.setEnabledIntents(EnumSet.allOf(GatewayIntent.class));
 
-        builder.addEventListeners(new MessageListener());
+        List<Long> channelIds = new ArrayList<>();
+        channelIds.add(Long.valueOf("851846318434418718"));
+
+        builder.addEventListeners(new MessageListener(channelIds));
     }
 
-    public void start() {
+    @Override
+    public void run() {
         bot = builder.build();
     }
 
