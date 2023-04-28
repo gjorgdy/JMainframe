@@ -3,8 +3,10 @@ package nl.gjorgdy.discord;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import nl.gjorgdy.Main;
-import nl.gjorgdy.objects.Identifier;
-import nl.gjorgdy.objects.Message;
+import nl.gjorgdy.Message;
+import nl.gjorgdy.database.Records;
+import nl.gjorgdy.database.records.identifiers.Identifier;
+import nl.gjorgdy.database.records.identifiers.LongIdentifier;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
@@ -23,7 +25,7 @@ public class MessageListener extends ListenerAdapter {
         if (channelIds.contains(event.getChannel().getIdLong())) {
             Message mainframeMessage = new Message(
                     // Create an identifier for this user
-                    new Identifier("discord", event.getAuthor().getIdLong(), null),
+                    new LongIdentifier(Identifier.Types.discord_user, event.getAuthor().getIdLong()),
                     // Get the contents of this message
                     event.getMessage().getContentRaw()
             );

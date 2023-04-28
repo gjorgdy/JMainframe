@@ -1,17 +1,18 @@
 package nl.gjorgdy;
 
 import nl.gjorgdy.database.MongoDB;
+import nl.gjorgdy.database.records.Role;
+import nl.gjorgdy.database.records.User;
+import nl.gjorgdy.database.records.identifiers.Identifier;
+import nl.gjorgdy.database.records.identifiers.StringIdentifier;
 import nl.gjorgdy.discord.Discord;
-import nl.gjorgdy.objects.Message;
-import nl.gjorgdy.objects.User;
+import org.bson.types.ObjectId;
 
 import java.io.*;
-import java.util.ArrayList;
-import java.util.HashMap;
 
 public class Main {
     public static Discord DISCORD;
-    public static MongoDB MONGO_DB;
+    public static MongoDB MONGODB;
     public static ObjectOutputStream MESSAGE_OUTPUT_STREAM;
     private final ObjectInputStream MESSAGE_INPUT_STREAM;
 
@@ -23,30 +24,34 @@ public class Main {
         MESSAGE_OUTPUT_STREAM = new ObjectOutputStream(outputStream);
         MESSAGE_INPUT_STREAM = new ObjectInputStream(inputStream);
         // Create a database instance
-        MONGO_DB = new MongoDB();
+        MONGODB = new MongoDB();
         // Create a Discord bot instance
         DISCORD = new Discord();
     }
 
     public void start() {
-        // Start MongoDb thread
-        MONGO_DB.start();
+        // Start MongoDB thread
+        MONGODB.start();
         // Start Discord thread
         DISCORD.start();
-        // Database check
-        while (!MONGO_DB.isReady()) {
+        // Database check/
+        while (MONGODB.isNotReady()) {
             System.out.print(".");
         }
-        User testUser = MONGO_DB.insertUser(
+        User testUser = MONGODB.testInsertUser(
             new User(
                 null,
-                "testUser",
-                new ArrayList<>(),
-                new HashMap<>()
+                "Jordy",
+                new Role[] {
+                    new Role(new ObjectId(), "testRole", null, null),
+                    new Role(new ObjectId(), "testRole2", null, null)
+                },
+                new Identifier[] {
+                    new StringIdentifier(Identifier.Types.minecraft_user, "68b18dc4-9e72-4da2-912c-a2e3af5b6299")
+                }
             )
         );
-        System.out.println(testUser.getUserId());
-        System.out.println(testUser.getDisplayName());
+        System.out.println(String.join("\n",testUser.toStringList()) );
         // Start message forwarding thread
         messageForwarder();
     }
@@ -56,7 +61,7 @@ public class Main {
         while (true) {
             try {
                 msg = (Message) MESSAGE_INPUT_STREAM.readObject();
-                System.out.println(msg.getAuthorIdentifier() + " : " + msg.getContent());
+                System.out.println(msg.authorIdentifier() + " : " + msg.content());
             } catch (IOException | ClassNotFoundException e) {
                 throw new RuntimeException(e);
             }

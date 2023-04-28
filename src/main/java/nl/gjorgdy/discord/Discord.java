@@ -9,10 +9,11 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 
-public class Discord extends Thread {
+public class Discord {
 
     private final JDABuilder builder;
     private JDA bot;
+    public boolean ready;
 
     public Discord() {
         // Construct the bot itself
@@ -26,9 +27,18 @@ public class Discord extends Thread {
         builder.addEventListeners(new MessageListener(channelIds));
     }
 
-    @Override
-    public void run() {
+    public void start() {
         bot = builder.build();
+        while (bot == null) {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
+    public JDA getBot() {
+        return bot;
+    }
 }
