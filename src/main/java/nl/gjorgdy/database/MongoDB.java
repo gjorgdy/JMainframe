@@ -7,12 +7,18 @@ import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
-import com.mongodb.client.result.InsertOneResult;
 import nl.gjorgdy.database.codecs.IdentifierArrayCodec;
 import nl.gjorgdy.database.codecs.IdentifierCodec;
-import nl.gjorgdy.database.codecs.RoleArrayCodec;
-import nl.gjorgdy.database.records.Role;
-import nl.gjorgdy.database.records.User;
+import nl.gjorgdy.database.codecs.IdentifierMapCodec;
+import nl.gjorgdy.database.codecs.StringArrayCodec;
+import nl.gjorgdy.database.handlers.ChannelHandler;
+import nl.gjorgdy.database.handlers.RoleHandler;
+import nl.gjorgdy.database.handlers.ServerHandler;
+import nl.gjorgdy.database.handlers.UserHandler;
+import nl.gjorgdy.database.records.ChannelRecord;
+import nl.gjorgdy.database.records.RoleRecord;
+import nl.gjorgdy.database.records.ServerRecord;
+import nl.gjorgdy.database.records.UserRecord;
 import org.bson.BsonDocument;
 import org.bson.BsonInt64;
 import org.bson.Document;
@@ -20,13 +26,16 @@ import org.bson.codecs.configuration.CodecRegistries;
 import org.bson.codecs.configuration.CodecRegistry;
 import org.bson.codecs.pojo.PojoCodecProvider;
 import org.bson.conversions.Bson;
-import org.bson.types.ObjectId;
 
 public class MongoDB extends Thread {
 
     private final MongoClientSettings settings;
-    private MongoCollection<User> userCollection;
-    private MongoCollection<Role> roleCollection;
+    private boolean status = false;
+    private MongoClient mongoClient;
+    public UserHandler userHandler;
+    public RoleHandler roleHandler;
+    public ChannelHandler channelHandler;
+    public ServerHandler serverHandler;
 
     public MongoDB() {
         String username = "mainframe";
@@ -36,11 +45,11 @@ public class MongoDB extends Thread {
 
         CodecRegistry codecRegistry = CodecRegistries.fromRegistries(
                 MongoClientSettings.getDefaultCodecRegistry(),
-                CodecRegistries.fromCodecs(new IdentifierCodec(), new IdentifierArrayCodec(), new RoleArrayCodec()),
+                CodecRegistries.fromCodecs(new IdentifierMapCodec(), new IdentifierCodec(), new IdentifierArrayCodec(), new StringArrayCodec()),
                 CodecRegistries.fromProviders(
                         PojoCodecProvider.builder()
-                                .register(Role.class)
-                                .register(User.class)
+                                .register(RoleRecord.class)
+                                .register(UserRecord.class)
                                 .build()
                 )
         );
@@ -49,13 +58,14 @@ public class MongoDB extends Thread {
                 .applyConnectionString(new ConnectionString(uri))
                 .codecRegistry(codecRegistry)
                 .build();
+
     }
 
     @Override
     public void start() {
         super.start();
-        // Block main thread till Database has connected
-        while (isNotReady()) {
+        // Block main thread until Database has connected
+        while (!status) {
             try {
                 Thread.sleep(100);
             } catch (InterruptedException e) {
@@ -64,58 +74,51 @@ public class MongoDB extends Thread {
         }
     }
 
+    public void close() {
+        mongoClient.close();
+    }
+
     @Override
     public void run() {
         // Keep the database connected
-        try (MongoClient mongoClient = MongoClients.create(settings)) {
-            MongoDatabase database = mongoClient.getDatabase("mainframe");
-            userCollection = database.getCollection("users", User.class);
-            roleCollection = database.getCollection("roles", Role.class);
-            // Ping every n seconds
-            while (true) {
+        while (true) {
+            try (MongoClient mongoClient = MongoClients.create(settings)) {
+                this.mongoClient = mongoClient;
+                // Get the Mainframe database
+                MongoDatabase database = mongoClient.getDatabase("mainframe");
+                // Get user collection and create handler
+                MongoCollection<UserRecord> userCollection = database.getCollection("users", UserRecord.class);
+                userHandler = new UserHandler(userCollection);
+                // Get role collection and create handler
+                MongoCollection<RoleRecord> roleCollection = database.getCollection("roles", RoleRecord.class);
+                roleHandler = new RoleHandler(roleCollection);
+                // Get channel collection and create handler
+                MongoCollection<ChannelRecord> channelCollection = database.getCollection("channels", ChannelRecord.class);
+                channelHandler = new ChannelHandler(roleCollection);
+                // Get server collection and create handler
+                MongoCollection<ServerRecord> serverCollection = database.getCollection("servers", ServerRecord.class);
+                serverHandler = new ServerHandler(serverCollection);
+                // Ping to check connection
                 try {
-                    // TODO: implement data sync
-                    // Send a ping to confirm a successful connection
-                    Bson command = new BsonDocument("ping", new BsonInt64(1));
-                    Document commandResult = database.runCommand(command);
-                    //System.out.println("[MongoDB] Successfully pinged database");
-                    Thread.sleep(10000);
-                } catch (MongoException |InterruptedException e) {
+                    while (true) {
+                        // Send a ping to confirm a successful connection
+                        Bson command = new BsonDocument("ping", new BsonInt64(1));
+                        Document commandResult = database.runCommand(command);
+                        // If reached, connection established
+                        status = true;
+                        // Sleep for 10 seconds
+                        Thread.sleep(10000);
+                    }
+                } catch (MongoException | InterruptedException e) {
                     System.err.println(e);
+                    // Set ready state to false
+                    status = false;
                 }
             }
         }
     }
 
-    public boolean isNotReady() {
-        return userCollection == null || roleCollection == null;
-    }
-
-    public Role getRole(ObjectId roleId) {
-        return roleCollection.find(new Document("_id", roleId)).first();
-    }
-
-    public User testInsertUser(User user) {
-        userCollection.deleteMany(new BsonDocument());
-        InsertOneResult result = userCollection.insertOne(user);
-        System.out.print(result.getInsertedId());
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-        return userCollection.find(new Document("_id", result.getInsertedId())).first();
-    }
-
-    public Role testInsertRole(Role role) {
-        roleCollection.deleteMany(new BsonDocument());
-        InsertOneResult result = roleCollection.insertOne(role);
-        System.out.print(result.getInsertedId());
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-        return roleCollection.find(new Document("_id", result.getInsertedId())).first();
+    public String getStatus() {
+        return status ? "Online" : "Offline";
     }
 }

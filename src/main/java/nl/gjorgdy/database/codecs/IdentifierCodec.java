@@ -2,6 +2,7 @@ package nl.gjorgdy.database.codecs;
 
 import nl.gjorgdy.database.records.identifiers.Identifier;
 import nl.gjorgdy.database.records.identifiers.LongIdentifier;
+import nl.gjorgdy.database.records.identifiers.ObjectIdIdentifier;
 import nl.gjorgdy.database.records.identifiers.StringIdentifier;
 import org.bson.BsonReader;
 import org.bson.BsonType;
@@ -25,6 +26,8 @@ public class IdentifierCodec implements Codec<Identifier> {
             id = new LongIdentifier(type, reader.readInt64());
         } else if (bsonType == BsonType.STRING) {
             id = new StringIdentifier(type, reader.readString());
+        } else if (bsonType == BsonType.OBJECT_ID) {
+            id = new ObjectIdIdentifier(type, reader.readObjectId());
         }
         // End reading document
         reader.readEndDocument();
@@ -42,6 +45,8 @@ public class IdentifierCodec implements Codec<Identifier> {
             writer.writeInt64((long) identifier.id());
         } else if (identifier instanceof StringIdentifier) {
             writer.writeString((String) identifier.id());
+        } else if (identifier instanceof ObjectIdIdentifier) {
+            writer.writeObjectId(((ObjectIdIdentifier) identifier).id());
         }
         // Stop writing the document
         writer.writeEndDocument();

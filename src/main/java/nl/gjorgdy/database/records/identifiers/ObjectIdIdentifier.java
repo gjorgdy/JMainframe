@@ -1,9 +1,17 @@
 package nl.gjorgdy.database.records.identifiers;
 
-import nl.gjorgdy.database.Records;
+import org.bson.Document;
 import org.bson.types.ObjectId;
+
+import java.io.Serializable;
 
 public record ObjectIdIdentifier (
         Types type,
         ObjectId id
-) implements Identifier { }
+) implements Identifier, Serializable {
+
+    public Document filter() {
+        return new Document("_id", id);
+    }
+
+}

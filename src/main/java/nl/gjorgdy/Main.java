@@ -1,32 +1,34 @@
 package nl.gjorgdy;
 
+import nl.gjorgdy.chats.MessageForwarder;
 import nl.gjorgdy.database.MongoDB;
-import nl.gjorgdy.database.records.Role;
-import nl.gjorgdy.database.records.User;
+import nl.gjorgdy.database.exceptions.InvalidDisplayNameException;
+import nl.gjorgdy.database.exceptions.UserAlreadyRegisteredException;
+import nl.gjorgdy.database.records.RoleRecord;
+import nl.gjorgdy.database.records.UserRecord;
 import nl.gjorgdy.database.records.identifiers.Identifier;
-import nl.gjorgdy.database.records.identifiers.StringIdentifier;
+import nl.gjorgdy.database.records.identifiers.LongIdentifier;
 import nl.gjorgdy.discord.Discord;
-import org.bson.types.ObjectId;
+import nl.gjorgdy.events.Listeners;
 
 import java.io.*;
+import java.util.Scanner;
 
 public class Main {
     public static Discord DISCORD;
     public static MongoDB MONGODB;
-    public static ObjectOutputStream MESSAGE_OUTPUT_STREAM;
-    private final ObjectInputStream MESSAGE_INPUT_STREAM;
+    public static Listeners LISTENERS;
+    public static MessageForwarder MESSAGE_FORWARDER;
 
     public Main() throws IOException {
-        // Create piped streams
-        PipedOutputStream outputStream = new PipedOutputStream();
-        PipedInputStream inputStream = new PipedInputStream(outputStream);
-        // Create object streams
-        MESSAGE_OUTPUT_STREAM = new ObjectOutputStream(outputStream);
-        MESSAGE_INPUT_STREAM = new ObjectInputStream(inputStream);
         // Create a database instance
         MONGODB = new MongoDB();
         // Create a Discord bot instance
         DISCORD = new Discord();
+        // Create a Listener instance
+        LISTENERS = new Listeners();
+        // Create a Message Forwarder instance
+        MESSAGE_FORWARDER = new MessageForwarder();
     }
 
     public void start() {
@@ -34,36 +36,56 @@ public class Main {
         MONGODB.start();
         // Start Discord thread
         DISCORD.start();
-        // Database check/
-        while (MONGODB.isNotReady()) {
-            System.out.print(".");
-        }
-        User testUser = MONGODB.testInsertUser(
-            new User(
-                null,
-                "Jordy",
-                new Role[] {
-                    new Role(new ObjectId(), "testRole", null, null),
-                    new Role(new ObjectId(), "testRole2", null, null)
-                },
-                new Identifier[] {
-                    new StringIdentifier(Identifier.Types.minecraft_user, "68b18dc4-9e72-4da2-912c-a2e3af5b6299")
-                }
-            )
-        );
-        System.out.println(String.join("\n",testUser.toStringList()) );
         // Start message forwarding thread
-        messageForwarder();
+        MESSAGE_FORWARDER.start();
+        // Test user
+        try {
+            MONGODB.roleHandler.clear();
+            RoleRecord roleRecord = MONGODB.roleHandler.create("TestRole");
+
+            MONGODB.userHandler.clear();
+            UserRecord userRecord = MONGODB.userHandler.register(new LongIdentifier(Identifier.Types.discord_user, Long.valueOf("214323983586164736")), "Jordy");
+            MONGODB.userHandler.addRole(userRecord, roleRecord);
+        } catch (InvalidDisplayNameException | UserAlreadyRegisteredException e) {
+            System.err.println(e);
+        }
+        // Start cli on main thread
+        cli();
     }
 
-    public void messageForwarder() {
-        Message msg;
+    public void stop() {
+        MONGODB.close();
+
+        DISCORD.shutdown();
+
+        System.exit(0);
+    }
+
+    public void cli() {
+        Scanner scanner = new Scanner(System.in);
+
+        System.out.println("\n >>> Mainframe <<< \n");
+
         while (true) {
+            String in;
             try {
-                msg = (Message) MESSAGE_INPUT_STREAM.readObject();
-                System.out.println(msg.authorIdentifier() + " : " + msg.content());
-            } catch (IOException | ClassNotFoundException e) {
-                throw new RuntimeException(e);
+                in = scanner.nextLine();
+            } catch (IllegalStateException e) {
+                break;
+            }
+
+            switch (in) {
+                case "stop" -> stop();
+                case "status" -> {
+                    System.out.println(" Mainframe Status:");
+                    System.out.println("  MongoDB: " + MONGODB.getStatus());
+                    System.out.println("  Discord: " + MONGODB.getStatus());
+                }
+                default -> {
+                    System.out.println(
+                            "Invalid command : \"" + in + "\""
+                    );
+                }
             }
         }
     }
