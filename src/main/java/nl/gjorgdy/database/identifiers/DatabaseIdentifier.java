@@ -1,11 +1,11 @@
-package nl.gjorgdy.database.records.identifiers;
+package nl.gjorgdy.database.identifiers;
 
 import org.bson.Document;
 import org.bson.types.ObjectId;
 
 import java.io.Serializable;
 
-public record ObjectIdIdentifier (
+public record DatabaseIdentifier (
         Types type,
         ObjectId id
 ) implements Identifier, Serializable {

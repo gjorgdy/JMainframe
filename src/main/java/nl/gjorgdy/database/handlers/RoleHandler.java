@@ -1,72 +1,102 @@
 package nl.gjorgdy.database.handlers;
 
 import com.mongodb.client.MongoCollection;
-import com.mongodb.client.model.Filters;
+import com.mongodb.client.result.InsertOneResult;
+import com.mongodb.client.result.UpdateResult;
 import nl.gjorgdy.Main;
 import nl.gjorgdy.database.exceptions.InvalidDisplayNameException;
-import nl.gjorgdy.database.exceptions.UserAlreadyRegisteredException;
-import nl.gjorgdy.database.handlers.generic.ConnectionsHandler;
-import nl.gjorgdy.database.records.RoleRecord;
-import nl.gjorgdy.database.records.identifiers.Identifier;
+import nl.gjorgdy.database.exceptions.NotRegisteredException;
+import nl.gjorgdy.database.exceptions.RecordAlreadyConnectedException;
+import nl.gjorgdy.database.exceptions.RecordAlreadyRegisteredException;
+import nl.gjorgdy.database.handlers.generic.RolesHandler;
+import nl.gjorgdy.database.identifiers.Identifier;
+import org.bson.Document;
 import org.jetbrains.annotations.NotNull;
 
-public class RoleHandler extends ConnectionsHandler<RoleRecord> {
+public class RoleHandler extends RolesHandler {
 
-    public RoleHandler(MongoCollection<RoleRecord> mongoCollection) {
-        super(mongoCollection);
+    // Keys
+    //  extends DisplayNameHandler -> IdentifierHandler
+    static final String PERMISSIONS = "permissions"; // String[]
+
+    public RoleHandler(MongoCollection<Document> mongoCollection) {
+        super(mongoCollection,true, true);
     }
 
-    public RoleRecord create(@NotNull String displayName) throws InvalidDisplayNameException {
-        // Check if display name is already in use
-        if (isDisplayNameUsed(displayName)) {
-            throw new InvalidDisplayNameException();
-        }
+    public boolean register(@NotNull String displayName) throws InvalidDisplayNameException {
+        // Throw an error if display name is already in use
+        if (displayNameInUse(displayName)) throw new InvalidDisplayNameException();
         // Create a new user
-        RoleRecord roleRecord = new RoleRecord(null, displayName, new String[0], new Identifier[0], new Identifier[0]);
+        Document roleDocument = createDocument(displayName);
+        roleDocument.append(PERMISSIONS, new String[0]);
         // Insert into database
-        boolean success = insert(roleRecord).wasAcknowledged();
+        InsertOneResult result = insert(roleDocument);
         // Return role
-        return success ? roleRecord : null;
+        return result.wasAcknowledged();
     }
 
-    public RoleRecord addParentRole(RoleRecord roleRecord, RoleRecord parentRoleRecord) {
-        // Add role
-        addArrayValue(roleRecord.filter(), "parent_roles", parentRoleRecord.databaseIdentifier());
-        // Get updated role
-        RoleRecord updatedRoleRecord = get(roleRecord.databaseIdentifier());
-        // Execute update event
-        Main.LISTENERS.onRoleParentUpdate(updatedRoleRecord, parentRoleRecord, true);
-        // Reload value
-        return updatedRoleRecord;
+    public boolean addPermission(Identifier roleIdentifier, String permission) throws NotRegisteredException {
+        UpdateResult result = addArrayValue(getFilter(roleIdentifier), PERMISSIONS, permission);
+        if (result.getModifiedCount() > 0) {
+            Identifier[] roleIdentifiers = getAllIdentifiers(getFilter(roleIdentifier));
+            Main.LISTENERS.onRolePermissionUpdate(roleIdentifiers, permission, true);
+            return true;
+        }
+        return false;
     }
 
-    public RoleRecord removeParentRole(RoleRecord roleRecord, RoleRecord parentRoleRecord) {
-        // Add role
-        addArrayValue(roleRecord.filter(), "parent_roles", parentRoleRecord.databaseIdentifier());
-        // Get updated role
-        RoleRecord updatedRoleRecord = get(roleRecord.databaseIdentifier());
-        // Execute update event
-        Main.LISTENERS.onRoleParentUpdate(updatedRoleRecord, parentRoleRecord, false);
-        // Reload value
-        return updatedRoleRecord;
+    public boolean removePermission(Identifier roleIdentifier, String permission) throws NotRegisteredException {
+        UpdateResult result = pullArrayValue(getFilter(roleIdentifier), PERMISSIONS, permission);
+        if (result.getModifiedCount() > 0) {
+            Identifier[] roleIdentifiers = getAllIdentifiers(getFilter(roleIdentifier));
+            Main.LISTENERS.onRolePermissionUpdate(roleIdentifiers, permission, false);
+            return true;
+        }
+        return false;
     }
 
-    @Override
-    public RoleRecord addConnection(RoleRecord roleRecord, Identifier connection) throws UserAlreadyRegisteredException {
-        RoleRecord updatedRoleRecord = super.addConnection(roleRecord, connection);
-        // Execute update event
-        Main.LISTENERS.onRoleConnectionUpdate(updatedRoleRecord, connection, true);
-        // Return value
-        return updatedRoleRecord;
+    public boolean addParentRole(Identifier roleIdentifier, Identifier parentRoleIdentifier) throws NotRegisteredException {
+        if (addRole(roleIdentifier, parentRoleIdentifier)) {
+            Identifier[] roleIdentifiers = getAllIdentifiers(getFilter(roleIdentifier));
+            Identifier[] parentRoleIdentifiers = getAllIdentifiers(getFilter(parentRoleIdentifier));
+            // Execute update event
+            Main.LISTENERS.onRoleParentUpdate(roleIdentifiers, parentRoleIdentifiers, true);
+            // Reload value
+            return true;
+        }
+        return false;
     }
 
-    @Override
-    public RoleRecord removeConnection(RoleRecord roleRecord, Identifier connection) {
-        RoleRecord updatedRoleRecord = super.removeConnection(roleRecord, connection);
-        // Execute update event
-        Main.LISTENERS.onRoleConnectionUpdate(updatedRoleRecord, connection, true);
-        // Return value
-        return updatedRoleRecord;
+    public boolean removeParentRole(Identifier roleIdentifier, Identifier parentRoleIdentifier) throws NotRegisteredException {
+        if (removeRole(roleIdentifier, parentRoleIdentifier)) {
+            Identifier[] roleIdentifiers = getAllIdentifiers(getFilter(roleIdentifier));
+            Identifier[] parentRoleIdentifiers = getAllIdentifiers(getFilter(parentRoleIdentifier));
+            // Execute update event
+            Main.LISTENERS.onRoleParentUpdate(roleIdentifiers, parentRoleIdentifiers, false);
+            // Reload value
+            return true;
+        }
+        return false;
+    }
+
+    public boolean addConnection(Identifier roleIdentifier, Identifier connectionIdentifier) throws NotRegisteredException, RecordAlreadyConnectedException, RecordAlreadyRegisteredException {
+        if (super.addIdentifier(roleIdentifier, connectionIdentifier)) {
+            // Execute update event
+            Identifier[] roleIdentifiers = getAllIdentifiers(roleIdentifier);
+            Main.LISTENERS.onUserConnectionUpdate(roleIdentifiers, connectionIdentifier, true);
+            return true;
+        }
+        return false;
+    }
+
+    public boolean removeConnection(Identifier roleIdentifier, Identifier connectionIdentifier) throws NotRegisteredException {
+        if (super.removeIdentifier(roleIdentifier, connectionIdentifier)) {
+            // Execute update event
+            Identifier[] roleIdentifiers = getAllIdentifiers(roleIdentifier);
+            Main.LISTENERS.onUserConnectionUpdate(roleIdentifiers, connectionIdentifier, false);
+            return true;
+        }
+        return false;
     }
 
 }

@@ -2,12 +2,6 @@ package nl.gjorgdy;
 
 import nl.gjorgdy.chats.MessageForwarder;
 import nl.gjorgdy.database.MongoDB;
-import nl.gjorgdy.database.exceptions.InvalidDisplayNameException;
-import nl.gjorgdy.database.exceptions.UserAlreadyRegisteredException;
-import nl.gjorgdy.database.records.RoleRecord;
-import nl.gjorgdy.database.records.UserRecord;
-import nl.gjorgdy.database.records.identifiers.Identifier;
-import nl.gjorgdy.database.records.identifiers.LongIdentifier;
 import nl.gjorgdy.discord.Discord;
 import nl.gjorgdy.events.Listeners;
 
@@ -38,17 +32,8 @@ public class Main {
         DISCORD.start();
         // Start message forwarding thread
         MESSAGE_FORWARDER.start();
-        // Test user
-        try {
-            MONGODB.roleHandler.clear();
-            RoleRecord roleRecord = MONGODB.roleHandler.create("TestRole");
+        // Test shit
 
-            MONGODB.userHandler.clear();
-            UserRecord userRecord = MONGODB.userHandler.register(new LongIdentifier(Identifier.Types.discord_user, Long.valueOf("214323983586164736")), "Jordy");
-            MONGODB.userHandler.addRole(userRecord, roleRecord);
-        } catch (InvalidDisplayNameException | UserAlreadyRegisteredException e) {
-            System.err.println(e);
-        }
         // Start cli on main thread
         cli();
     }
@@ -74,18 +59,17 @@ public class Main {
                 break;
             }
 
-            switch (in) {
+            String[] inArray = in.split(" ");
+            switch (inArray[0]) {
                 case "stop" -> stop();
                 case "status" -> {
                     System.out.println(" Mainframe Status:");
                     System.out.println("  MongoDB: " + MONGODB.getStatus());
                     System.out.println("  Discord: " + MONGODB.getStatus());
                 }
-                default -> {
-                    System.out.println(
-                            "Invalid command : \"" + in + "\""
-                    );
-                }
+                default -> System.out.println(
+                    "Invalid command : \"" + in + "\""
+                );
             }
         }
     }

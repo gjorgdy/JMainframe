@@ -1,113 +1,106 @@
 package nl.gjorgdy.database.handlers;
 
 import com.mongodb.client.MongoCollection;
+import com.mongodb.client.result.InsertOneResult;
 import nl.gjorgdy.Main;
 import nl.gjorgdy.database.exceptions.InvalidDisplayNameException;
-import nl.gjorgdy.database.exceptions.UserAlreadyConnectedException;
-import nl.gjorgdy.database.exceptions.UserAlreadyRegisteredException;
+import nl.gjorgdy.database.exceptions.NotRegisteredException;
+import nl.gjorgdy.database.exceptions.RecordAlreadyConnectedException;
+import nl.gjorgdy.database.exceptions.RecordAlreadyRegisteredException;
 import nl.gjorgdy.database.handlers.generic.DisplayNameHandler;
-import nl.gjorgdy.database.records.RoleRecord;
-import nl.gjorgdy.database.records.UserRecord;
-import nl.gjorgdy.database.records.identifiers.Identifier;
+import nl.gjorgdy.database.handlers.generic.IdentifiersHandler;
+import nl.gjorgdy.database.handlers.generic.RolesHandler;
+import nl.gjorgdy.database.identifiers.Identifier;
+import org.bson.Document;
 
 import java.util.Date;
-import java.util.Map;
 
-public class UserHandler extends DisplayNameHandler<UserRecord> {
+public class UserHandler extends RolesHandler {
 
-    public UserHandler(MongoCollection<UserRecord> mongoCollection) {
-        super(mongoCollection);
+    // Keys
+    static final String AVATAR_URL = "avatar_url"; // String
+    static final String TIMESTAMP = "timestamp"; // Date
+
+    public UserHandler(MongoCollection<Document> mongoCollection) {
+        super(mongoCollection,true,false);
     }
 
     /**
-     * Create a new user
+     * Register a new user
      *
      * @param identifier identifier of the user
      * @param displayName the name for the user
      */
-    public UserRecord register(Identifier identifier, String displayName) throws UserAlreadyRegisteredException, InvalidDisplayNameException {
-        // Check if this identifier is registered
-        UserRecord user = get(identifier);
-        if (get(identifier) != null) {
-            System.err.println(user.toFormattedString());
-            throw new UserAlreadyRegisteredException();
-        }
-        // Check if display name is already in use
-        if (isDisplayNameUsed(displayName)) {
-            throw new InvalidDisplayNameException();
-        }
+    public boolean register(Identifier identifier, String displayName) throws RecordAlreadyRegisteredException, InvalidDisplayNameException {
+        // Throw an error if this identifier is registered
+        if (exists(getFilter(identifier))) throw new RecordAlreadyRegisteredException();
+        // Throw an error if display name is already in use
+        if (displayNameInUse(displayName)) throw new InvalidDisplayNameException();
         // Create a new user
-        UserRecord userRecord = new UserRecord(null, displayName, new Identifier[0], Map.of(identifier.type().toString(), identifier), new Date());
+        Document userDocument = new Document(DisplayNameHandler.KEY, displayName);
+        userDocument.append(IdentifiersHandler.KEY, new Identifier[0]);
+        userDocument.append(AVATAR_URL, "");
+        userDocument.append(TIMESTAMP, new Date());
         // Insert into database
-        insert(userRecord);
-        // Return object
-        return userRecord;
+        InsertOneResult insertOneResult = insert(userDocument);
+        // Return result of insertion
+        return insertOneResult.wasAcknowledged();
     }
 
     @Override
-    public UserRecord setDisplayName(UserRecord userRecord, String newDisplayName) throws InvalidDisplayNameException {
-        UserRecord updatedUserRecord = super.setDisplayName(userRecord, newDisplayName);
-        // Execute update event
-        Main.LISTENERS.onUserDisplayNameUpdate(updatedUserRecord);
-        // Return the new user object
-        return updatedUserRecord;
-    }
-
-    public UserRecord addRole(UserRecord userRecord, RoleRecord roleRecord) {
-        Identifier roleIdentifier = roleRecord.databaseIdentifier();
-        for (Identifier _roleIdentifier : userRecord.roles()) {
-            if (_roleIdentifier.equals(roleIdentifier)) {
-                // If user already has role, just return it
-                return userRecord;
-            }
+    public boolean setDisplayName(Identifier identifier, String newDisplayName) throws InvalidDisplayNameException, NotRegisteredException {
+        if (super.setDisplayName(identifier, newDisplayName)) {
+            Identifier[] userIdentifiers = getAllIdentifiers(getFilter(identifier));
+            // Send event
+            Main.LISTENERS.onUserDisplayNameUpdate(userIdentifiers, newDisplayName);
+            // Return result
+            return true;
         }
-        // Add role
-        addArrayValue(userRecord.filter(),"roles", roleIdentifier);
-        // Get new user
-        UserRecord updatedUserRecord = get(userRecord.databaseIdentifier());
-        // Execute update event
-        Main.LISTENERS.onUserRoleUpdate(updatedUserRecord, roleRecord, true);
-        // Reload value
-        return updatedUserRecord;
+        return false;
     }
 
-    public UserRecord removeRole(UserRecord userRecord, RoleRecord roleRecord) {
-        // Add role
-        pullArrayValue(userRecord.filter(),"roles", roleRecord.databaseIdentifier());
-        // Get new user
-        UserRecord updatedUserRecord = get(userRecord.databaseIdentifier());
-        // Execute update event
-        Main.LISTENERS.onUserRoleUpdate(updatedUserRecord, roleRecord, false);
-        // Reload value
-        return updatedUserRecord;
-    }
-
-    public UserRecord addConnection(UserRecord userRecord, Identifier connection) throws UserAlreadyRegisteredException, UserAlreadyConnectedException {
-        if (get(connection) != null) {
-            throw new UserAlreadyRegisteredException();
+    @Override
+    public boolean addRole(Identifier userIdentifier, Identifier roleIdentifier) throws NotRegisteredException {
+        // Execute update event if updated
+        if (super.addRole(userIdentifier, roleIdentifier)) {
+            Identifier[] userIdentifiers = getAllIdentifiers(getFilter(userIdentifier));
+            Identifier[] roleIdentifiers = Main.MONGODB.roleHandler.getAllIdentifiers(getFilter(roleIdentifier));
+            Main.LISTENERS.onUserRoleUpdate(userIdentifiers, roleIdentifiers, true);
+            return true;
         }
-        if (userRecord.connections().containsKey(connection.type())) {
-            throw new UserAlreadyConnectedException();
-        }
-        // Add connection
-        addArrayValue(userRecord.filter(), "connections", connection);
-        // Get updated user
-        UserRecord updatedUserRecord = get(userRecord.databaseIdentifier());
-        // Update event
-        Main.LISTENERS.onUserConnectionUpdate(updatedUserRecord, connection, true);
-        // Return new user object
-        return updatedUserRecord;
+        return false;
     }
 
-    public UserRecord removeConnection(UserRecord userRecord, Identifier connection) {
-        // Remove connection
-        pullArrayValue(userRecord.filter(), "connections", connection);
-        // Get updated user
-        UserRecord updatedUserRecord = get(userRecord.databaseIdentifier());
-        // Update event
-        Main.LISTENERS.onUserConnectionUpdate(updatedUserRecord, connection, false);
-        // Return new user object
-        return updatedUserRecord;
+    @Override
+    public boolean removeRole(Identifier userIdentifier, Identifier roleIdentifier) throws NotRegisteredException {
+        // Execute update event if updated
+        if (super.removeRole(userIdentifier, roleIdentifier)) {
+            Identifier[] userIdentifiers = getAllIdentifiers(getFilter(userIdentifier));
+            Identifier[] roleIdentifiers = Main.MONGODB.roleHandler.getAllIdentifiers(getFilter(roleIdentifier));
+            Main.LISTENERS.onUserRoleUpdate(userIdentifiers, roleIdentifiers, false);
+            return true;
+        }
+        return false;
+    }
+
+    public boolean addConnection(Identifier roleIdentifier, Identifier connectionIdentifier) throws NotRegisteredException, RecordAlreadyConnectedException, RecordAlreadyRegisteredException {
+        if (super.addIdentifier(roleIdentifier, connectionIdentifier)) {
+            // Execute update event
+            Identifier[] roleIdentifiers = getAllIdentifiers(roleIdentifier);
+            Main.LISTENERS.onUserConnectionUpdate(roleIdentifiers, connectionIdentifier, true);
+            return true;
+        }
+        return false;
+    }
+
+    public boolean removeConnection(Identifier userIdentifier, Identifier connectionIdentifier) throws NotRegisteredException {
+        if (super.removeIdentifier(userIdentifier, connectionIdentifier)) {
+            // Execute update event
+            Identifier[] userIdentifiers = getAllIdentifiers(userIdentifier);
+            Main.LISTENERS.onUserConnectionUpdate(userIdentifiers, connectionIdentifier, false);
+            return true;
+        }
+        return false;
     }
 
 }

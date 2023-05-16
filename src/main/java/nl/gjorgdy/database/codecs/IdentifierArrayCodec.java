@@ -1,6 +1,6 @@
 package nl.gjorgdy.database.codecs;
 
-import nl.gjorgdy.database.records.identifiers.Identifier;
+import nl.gjorgdy.database.identifiers.Identifier;
 import org.bson.BsonReader;
 import org.bson.BsonType;
 import org.bson.BsonWriter;

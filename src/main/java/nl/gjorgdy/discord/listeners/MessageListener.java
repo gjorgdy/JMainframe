@@ -4,8 +4,7 @@ import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import nl.gjorgdy.Main;
 import nl.gjorgdy.chats.Message;
-import nl.gjorgdy.database.records.ChannelRecord;
-import nl.gjorgdy.database.records.identifiers.Identifier;
+import nl.gjorgdy.database.identifiers.Identifier;
 import nl.gjorgdy.discord.Functions;
 import org.jetbrains.annotations.NotNull;
 
@@ -25,7 +24,6 @@ public class MessageListener extends ListenerAdapter {
             // Get objects
             Identifier authorIdentifier = Functions.createIdentifier(event.getAuthor());
             Identifier channelIdentifier = Functions.createIdentifier(event.getChannel());
-            ChannelRecord channelRecord = Main.MONGODB.channelHandler.get(channelIdentifier);
             // Construct message
             Message mainframeMessage = new Message(
                     // Create an identifier for user
@@ -36,7 +34,7 @@ public class MessageListener extends ListenerAdapter {
                     event.getMessage().getContentRaw()
             );
             // Forward message
-            Main.MESSAGE_FORWARDER.send(channelRecord, mainframeMessage);
+            Main.MESSAGE_FORWARDER.send(channelIdentifier, mainframeMessage);
         }
     }
 

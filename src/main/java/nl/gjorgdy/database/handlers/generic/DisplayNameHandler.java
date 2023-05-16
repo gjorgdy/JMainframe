@@ -1,37 +1,50 @@
 package nl.gjorgdy.database.handlers.generic;
 
 import com.mongodb.client.MongoCollection;
+import com.mongodb.client.model.Filters;
+import com.mongodb.client.model.TextSearchOptions;
+import com.mongodb.client.result.UpdateResult;
 import nl.gjorgdy.database.exceptions.InvalidDisplayNameException;
-import nl.gjorgdy.database.records.RecordInterface;
+import nl.gjorgdy.database.exceptions.NotRegisteredException;
+import nl.gjorgdy.database.identifiers.Identifier;
 import org.bson.Document;
+import org.bson.conversions.Bson;
 
-public class DisplayNameHandler<T extends RecordInterface> extends CacheHandler<T> {
+public class DisplayNameHandler extends IdentifiersHandler {
 
-    public DisplayNameHandler(MongoCollection<T> mongoCollection) {
-        super(mongoCollection);
+    static final String DISPLAY_NAME = "display_name";
+
+    public DisplayNameHandler(MongoCollection<Document> mongoCollection, boolean multiple, boolean duplicates) {
+        super(mongoCollection, multiple, duplicates);
     }
 
-    public T setDisplayName(T record, String newDisplayName) throws InvalidDisplayNameException {
-        // TODO : valid check
-        // If display name is used
-        if (isDisplayNameUsed(newDisplayName)) {
-            throw new InvalidDisplayNameException();
-        }
-        // Update display name
-        setValue(record.filter(), "display_name", newDisplayName);
-        // Reload record
-        return get(record.databaseIdentifier());
+    protected Document createDocument(String displayName) {
+        return super.create().append(DISPLAY_NAME, format(displayName));
     }
 
-    /**
-     * Check if display name is used already
-     *
-     * @param displayName displayName to be checked
-     * @return if the display is used already
-     */
-    protected boolean isDisplayNameUsed(String displayName) {
-        return null != findOne(new Document("display_name", displayName));
+    protected boolean setDisplayName(Identifier identifier, String newDisplayName) throws InvalidDisplayNameException, NotRegisteredException {
+        // Check if display name is already in use
+        if (displayNameInUse(newDisplayName)) throw new InvalidDisplayNameException();
+        // Set the value
+        UpdateResult result = setValue(getFilter(identifier), DISPLAY_NAME, newDisplayName);
+        // Execute update event if value changed
+        return result.getModifiedCount() > 0;
     }
 
+    public Document getFilter(String displayName) {
+        TextSearchOptions tso = new TextSearchOptions()
+                .caseSensitive(false)
+                .diacriticSensitive(false);
+        Bson textFilter = Filters.text(format(displayName), tso);
+        return new Document(DISPLAY_NAME, textFilter);
+    }
+
+    public boolean displayNameInUse(String displayName) {
+        return exists(getFilter(displayName));
+    }
+
+    public String format(String displayName) {
+        return displayName.replace("_", " ");
+    }
 
 }

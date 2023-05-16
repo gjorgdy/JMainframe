@@ -1,6 +1,6 @@
 package nl.gjorgdy.chats;
 
-import nl.gjorgdy.database.records.identifiers.Identifier;
+import nl.gjorgdy.database.identifiers.Identifier;
 
 import java.io.Serializable;
 

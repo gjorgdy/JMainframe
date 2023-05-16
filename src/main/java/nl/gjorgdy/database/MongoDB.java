@@ -3,28 +3,25 @@ package nl.gjorgdy.database;
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.MongoException;
+
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
+
 import nl.gjorgdy.database.codecs.IdentifierArrayCodec;
 import nl.gjorgdy.database.codecs.IdentifierCodec;
-import nl.gjorgdy.database.codecs.IdentifierMapCodec;
 import nl.gjorgdy.database.codecs.StringArrayCodec;
 import nl.gjorgdy.database.handlers.ChannelHandler;
 import nl.gjorgdy.database.handlers.RoleHandler;
 import nl.gjorgdy.database.handlers.ServerHandler;
 import nl.gjorgdy.database.handlers.UserHandler;
-import nl.gjorgdy.database.records.ChannelRecord;
-import nl.gjorgdy.database.records.RoleRecord;
-import nl.gjorgdy.database.records.ServerRecord;
-import nl.gjorgdy.database.records.UserRecord;
+
 import org.bson.BsonDocument;
 import org.bson.BsonInt64;
 import org.bson.Document;
 import org.bson.codecs.configuration.CodecRegistries;
 import org.bson.codecs.configuration.CodecRegistry;
-import org.bson.codecs.pojo.PojoCodecProvider;
 import org.bson.conversions.Bson;
 
 public class MongoDB extends Thread {
@@ -45,12 +42,10 @@ public class MongoDB extends Thread {
 
         CodecRegistry codecRegistry = CodecRegistries.fromRegistries(
                 MongoClientSettings.getDefaultCodecRegistry(),
-                CodecRegistries.fromCodecs(new IdentifierMapCodec(), new IdentifierCodec(), new IdentifierArrayCodec(), new StringArrayCodec()),
-                CodecRegistries.fromProviders(
-                        PojoCodecProvider.builder()
-                                .register(RoleRecord.class)
-                                .register(UserRecord.class)
-                                .build()
+                CodecRegistries.fromCodecs(
+                        new IdentifierCodec(),
+                        new IdentifierArrayCodec(),
+                        new StringArrayCodec()
                 )
         );
 
@@ -87,16 +82,16 @@ public class MongoDB extends Thread {
                 // Get the Mainframe database
                 MongoDatabase database = mongoClient.getDatabase("mainframe");
                 // Get user collection and create handler
-                MongoCollection<UserRecord> userCollection = database.getCollection("users", UserRecord.class);
+                MongoCollection<Document> userCollection = database.getCollection("users");
                 userHandler = new UserHandler(userCollection);
                 // Get role collection and create handler
-                MongoCollection<RoleRecord> roleCollection = database.getCollection("roles", RoleRecord.class);
+                MongoCollection<Document> roleCollection = database.getCollection("roles");
                 roleHandler = new RoleHandler(roleCollection);
                 // Get channel collection and create handler
-                MongoCollection<ChannelRecord> channelCollection = database.getCollection("channels", ChannelRecord.class);
-                channelHandler = new ChannelHandler(roleCollection);
+                MongoCollection<Document> channelCollection = database.getCollection("channels");
+                channelHandler = new ChannelHandler(channelCollection);
                 // Get server collection and create handler
-                MongoCollection<ServerRecord> serverCollection = database.getCollection("servers", ServerRecord.class);
+                MongoCollection<Document> serverCollection = database.getCollection("servers");
                 serverHandler = new ServerHandler(serverCollection);
                 // Ping to check connection
                 try {

@@ -1,8 +1,6 @@
-package nl.gjorgdy.database.records.identifiers;
+package nl.gjorgdy.database.identifiers;
 
-import org.bson.Document;
-
-import java.io.Serializable;
+import org.bson.types.ObjectId;
 
 public interface Identifier {
 
@@ -15,9 +13,10 @@ public interface Identifier {
         discord_role,
         discord_guild,
         discord_channel,
-        minecraft_user
+        minecraft_user,
+        minecraft_server
     }
 
     Types type();
-    Serializable id();
+    Object id();
 }

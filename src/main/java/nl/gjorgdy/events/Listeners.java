@@ -1,9 +1,7 @@
 package nl.gjorgdy.events;
 
 import nl.gjorgdy.chats.Message;
-import nl.gjorgdy.database.records.RoleRecord;
-import nl.gjorgdy.database.records.UserRecord;
-import nl.gjorgdy.database.records.identifiers.Identifier;
+import nl.gjorgdy.database.identifiers.Identifier;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,31 +18,38 @@ public class Listeners implements UserListener, RoleListener {
         userListeners.add(userListener);
     }
 
-
     @Override
-    public void onUserDisplayNameUpdate(UserRecord userRecord) {
-        UserListener.super.onUserDisplayNameUpdate(userRecord);
+    public void onRoleDisplayNameUpdate(Identifier[] roleIdentifiers, String displayName) {
+        RoleListener.super.onRoleDisplayNameUpdate(roleIdentifiers, displayName);
     }
 
     @Override
-    public void onRoleDisplayNameUpdate(RoleRecord roleRecord) {
-        RoleListener.super.onRoleDisplayNameUpdate(roleRecord);
+    public void onRoleParentUpdate(Identifier[] roleIdentifiers, Identifier[] parentRoleIdentifiers, boolean additive) {
+        RoleListener.super.onRoleParentUpdate(roleIdentifiers, parentRoleIdentifiers, additive);
     }
 
     @Override
-    public void onUserConnectionUpdate(UserRecord userRecord, Identifier connection, boolean additive) {
-        UserListener.super.onUserConnectionUpdate(userRecord, connection, additive);
+    public void onRolePermissionUpdate(Identifier[] roleIdentifiers, String permission, boolean additive) {
+        RoleListener.super.onRolePermissionUpdate(roleIdentifiers, permission, additive);
     }
 
     @Override
-    public void onUserRoleUpdate(UserRecord userRecord, RoleRecord roleRecord, boolean additive) {
-        UserListener.super.onUserRoleUpdate(userRecord, roleRecord, additive);
+    public void onUserDisplayNameUpdate(Identifier[] userIdentifiers, String newDisplayName) {
+        UserListener.super.onUserDisplayNameUpdate(userIdentifiers, newDisplayName);
+    }
+
+    @Override
+    public void onUserConnectionUpdate(Identifier[] userIdentifiers, Identifier connection, boolean additive) {
+        UserListener.super.onUserConnectionUpdate(userIdentifiers, connection, additive);
+    }
+
+    @Override
+    public void onUserRoleUpdate(Identifier[] userIdentifiers, Identifier[] roleIdentifiers, boolean additive) {
+        UserListener.super.onUserRoleUpdate(userIdentifiers, roleIdentifiers, additive);
     }
 
     @Override
     public void onMessage(Message msg) {
-        for (UserListener userListener : userListeners) {
-            userListener.onMessage(msg);
-        }
+        UserListener.super.onMessage(msg);
     }
 }
