@@ -2,79 +2,72 @@ package nl.gjorgdy.discord.listeners;
 
 import net.dv8tion.jda.api.audit.ActionType;
 import net.dv8tion.jda.api.audit.AuditLogEntry;
-import net.dv8tion.jda.api.events.Event;
+import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.events.guild.GenericGuildEvent;
 import net.dv8tion.jda.api.events.guild.member.GuildMemberRoleAddEvent;
 import net.dv8tion.jda.api.events.guild.member.GuildMemberRoleRemoveEvent;
-import net.dv8tion.jda.api.events.guild.member.GuildMemberUpdateEvent;
 import net.dv8tion.jda.api.events.guild.member.update.GuildMemberUpdateNicknameEvent;
+import net.dv8tion.jda.api.exceptions.InsufficientPermissionException;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import nl.gjorgdy.Main;
-import nl.gjorgdy.database.exceptions.InvalidDisplayNameException;
-import nl.gjorgdy.database.exceptions.NotRegisteredException;
-import nl.gjorgdy.database.identifiers.Identifier;
+import nl.gjorgdy.database.handlers.ServerHandler;
 import nl.gjorgdy.discord.Functions;
+import nl.gjorgdy.discord.Sync;
+import org.bson.conversions.Bson;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
 
 public class MemberListener extends ListenerAdapter {
 
-    Event lastEvent = null;
-
     @Override
     public void onGuildMemberRoleAdd(@NotNull GuildMemberRoleAddEvent event) {
         // Skip event if executed by this bot
         if (isEventByBot(event)) return;
-        // Create user identifier
-        Identifier userIdentifier = Functions.createIdentifier(event.getUser());
-        // Go through all roles
-        event.getRoles().forEach(role -> {
-            Identifier roleIdentifier = Functions.createIdentifier(role);
-            try {
-                Main.MONGODB.userHandler.addRole(userIdentifier, roleIdentifier);
-            } catch (NotRegisteredException e) {
-                System.err.println("Removed non-synced role : " + role.getName());
+        // Check if any role is linked
+        System.out.println(event.getMember().getEffectiveName());
+        for (Role role : event.getRoles()) {
+            if (Functions.isLinked(role)) {
+                Sync.readRoles(event.getMember());
+                break;
             }
-        });
+        }
     }
 
     @Override
     public void onGuildMemberRoleRemove(@NotNull GuildMemberRoleRemoveEvent event) {
         // Skip event if executed by this bot
         if (isEventByBot(event)) return;
-        // Create user identifier
-        Identifier userIdentifier = Functions.createIdentifier(event.getUser());
-        // Go through all roles
-        event.getRoles().forEach(role -> {
-            Identifier roleIdentifier = Functions.createIdentifier(role);
-            try {
-                Main.MONGODB.userHandler.removeRole(userIdentifier, roleIdentifier);
-            } catch (NotRegisteredException e) {
-                System.err.println("Removed non-synced role : " + role.getName());
+        // Check if any role is linked
+        System.out.println(event.getMember().getEffectiveName());
+        for (Role role : event.getRoles()) {
+            if (Functions.isLinked(role)) {
+                Sync.readRoles(event.getMember());
+                break;
             }
-        });
+        }
     }
 
     @Override
     public void onGuildMemberUpdateNickname(@NotNull GuildMemberUpdateNicknameEvent event) {
         // Skip event if executed by this bot
         if (isEventByBot(event)) return;
-        // Create user identifier
-        Identifier userIdentifier = Functions.createIdentifier(event.getUser());
+        // Skip event if sync is disabled in this guild
+        ServerHandler sh = Main.MONGODB.serverHandler;
+        Bson serverFilter = sh.getFilter(Functions.createIdentifier(event.getGuild()));
+        if (!sh.doesSyncDisplayNames(serverFilter)) return;
         // Try updating nickname
-        try {
-            Main.MONGODB.userHandler.setDisplayName(userIdentifier, event.getNewNickname());
-        } catch (NotRegisteredException e) {
-            return;
-        } catch (InvalidDisplayNameException e) {
-            event.getMember().modifyNickname(event.getOldNickname()).complete();
-        }
+        Sync.readDisplayName(event.getMember());
     }
 
     public static boolean isEventByBot(GenericGuildEvent event) {
-        Optional<AuditLogEntry> optAuditLogEntry = event.getGuild().retrieveAuditLogs().stream().filter(_auditLogEntry -> _auditLogEntry.getType() == ActionType.MEMBER_UPDATE).findFirst();
-        return optAuditLogEntry.isPresent() && optAuditLogEntry.get().getUser() == event.getJDA().getSelfUser();
+        try {
+            Optional<AuditLogEntry> optAuditLogEntry = event.getGuild().retrieveAuditLogs().stream().filter(_auditLogEntry -> _auditLogEntry.getType() == ActionType.MEMBER_UPDATE).findFirst();
+            return optAuditLogEntry.isPresent() && optAuditLogEntry.get().getUser() == event.getJDA().getSelfUser();
+        } catch (InsufficientPermissionException e) {
+            System.err.println("Insufficient permission : " + e.getPermission() + " in " + event.getGuild().getName());
+            return true;
+        }
     }
 
 }

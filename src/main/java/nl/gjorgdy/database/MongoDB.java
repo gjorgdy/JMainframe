@@ -3,25 +3,23 @@ package nl.gjorgdy.database;
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.MongoException;
-
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 
-import nl.gjorgdy.database.codecs.IdentifierArrayCodec;
-import nl.gjorgdy.database.codecs.IdentifierCodec;
-import nl.gjorgdy.database.codecs.StringArrayCodec;
 import nl.gjorgdy.database.handlers.ChannelHandler;
 import nl.gjorgdy.database.handlers.RoleHandler;
 import nl.gjorgdy.database.handlers.ServerHandler;
 import nl.gjorgdy.database.handlers.UserHandler;
 
+import nl.gjorgdy.database.identifiers.Identifier;
 import org.bson.BsonDocument;
 import org.bson.BsonInt64;
 import org.bson.Document;
 import org.bson.codecs.configuration.CodecRegistries;
 import org.bson.codecs.configuration.CodecRegistry;
+import org.bson.codecs.pojo.PojoCodecProvider;
 import org.bson.conversions.Bson;
 
 public class MongoDB extends Thread {
@@ -33,6 +31,7 @@ public class MongoDB extends Thread {
     public RoleHandler roleHandler;
     public ChannelHandler channelHandler;
     public ServerHandler serverHandler;
+    public CodecRegistry codecRegistry;
 
     public MongoDB() {
         String username = "mainframe";
@@ -40,12 +39,18 @@ public class MongoDB extends Thread {
         String ip = "hexasis.eu:27017";
         String uri = "mongodb://" + username + ":" + password + "@" + ip;
 
-        CodecRegistry codecRegistry = CodecRegistries.fromRegistries(
+        codecRegistry = CodecRegistries.fromRegistries(
                 MongoClientSettings.getDefaultCodecRegistry(),
-                CodecRegistries.fromCodecs(
-                        new IdentifierCodec(),
-                        new IdentifierArrayCodec(),
-                        new StringArrayCodec()
+                //CodecRegistries.fromCodecs(
+                //        new IdentifierCodec(),
+                //        new IdentifierArrayCodec(),
+                //        new StringArrayCodec(),
+                //        new ObjectIDArrayCodec()
+                //)
+                CodecRegistries.fromProviders(
+                        PojoCodecProvider.builder()
+                                .register(Identifier.class)
+                                .build()
                 )
         );
 

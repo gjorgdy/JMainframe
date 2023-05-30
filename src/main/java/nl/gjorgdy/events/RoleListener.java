@@ -2,9 +2,11 @@ package nl.gjorgdy.events;
 
 import nl.gjorgdy.database.identifiers.Identifier;
 
+import java.util.List;
+
 public interface RoleListener {
-    default void onRoleDisplayNameUpdate(Identifier[] roleIdentifiers, String displayName) {}
-    default void onRoleParentUpdate(Identifier[] roleIdentifiers, Identifier[] parentRoleIdentifiers, boolean additive) {}
-    default void onUserConnectionUpdate(Identifier[] roleIdentifiers, Identifier connection, boolean additive) {}
-    default void onRolePermissionUpdate(Identifier[] roleIdentifiers, String permission, boolean additive) {}
+    default void onRoleDisplayNameUpdate(List<Identifier> roleIdentifiers, String displayName) {}
+    default void onRoleParentUpdate(List<Identifier> roleIdentifiers, List<Identifier> parentRoleIdentifiers, boolean additive) {}
+    default void onRoleConnectionUpdate(List<Identifier> roleIdentifiers, Identifier connection, boolean additive) {}
+    default void onRolePermissionUpdate(List<Identifier> roleIdentifiers, String permission, boolean additive) {}
 }

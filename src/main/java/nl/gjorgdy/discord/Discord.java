@@ -22,7 +22,7 @@ public class Discord {
     public Discord() {
         // Construct the bot itself
         builder = JDABuilder.createDefault("ODQ4OTEyNDA4MTczMjE1Nzg0.YLThSg.On5qaGcNjA4vyH06ZQ-IH1AZrXc");
-        builder.setActivity(Activity.watching("Hexasis"));
+        builder.setActivity(Activity.listening("inspirational quotes"));
         builder.setEnabledIntents(EnumSet.allOf(GatewayIntent.class));
 
         List<Long> channelIds = new ArrayList<>();
@@ -32,20 +32,21 @@ public class Discord {
         builder.addEventListeners(new MemberListener());
         // Cache all users
         builder.setMemberCachePolicy(MemberCachePolicy.ALL);
-        //builder.setEventPassthrough(true);
     }
 
     public void start() {
-        bot = builder.build();
-        while (!isReady()) {
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+        try {
+            bot = builder.build().awaitReady();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
         }
         // Register Mainframe user listeners
         Main.LISTENERS.addListener(new MainframeUserListener(bot));
+        // Start loader thread
+        new Loader(bot).start();
+        // Register command listener
+        bot.addEventListener(new SlashCommands());
+        // Set activity
     }
 
     public void shutdown() {

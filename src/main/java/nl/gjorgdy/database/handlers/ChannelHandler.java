@@ -6,6 +6,7 @@ import nl.gjorgdy.database.exceptions.NotRegisteredException;
 import nl.gjorgdy.database.handlers.generic.RolesHandler;
 import nl.gjorgdy.database.identifiers.Identifier;
 import org.bson.Document;
+import org.bson.conversions.Bson;
 
 public class ChannelHandler extends RolesHandler {
     public ChannelHandler(MongoCollection<Document> mongoCollection) {
@@ -20,9 +21,9 @@ public class ChannelHandler extends RolesHandler {
         return insert(channelDocument).wasAcknowledged();
     }
 
-    public boolean addAllowedRole(Identifier channelIdentifiers, Identifier roleIdentifier) throws NotRegisteredException {
+    public boolean addAllowedRole(Bson filter, Identifier roleIdentifier) throws NotRegisteredException {
         // Execute update event if updated
-        if (super.addRole(channelIdentifiers, roleIdentifier)) {
+        if (super.addRole(filter, roleIdentifier)) {
             //Identifier[] userIdentifiers = getAllIdentifiers(getFilter(userIdentifier));
             //Identifier[] roleIdentifiers = Main.MONGODB.roleHandler.getAllIdentifiers(getFilter(roleIdentifier));
             //Main.LISTENERS.onUserRoleUpdate(userIdentifiers, roleIdentifiers, true);
@@ -31,9 +32,9 @@ public class ChannelHandler extends RolesHandler {
         return false;
     }
 
-    public boolean removeAllowedRole(Identifier userIdentifier, Identifier roleIdentifier) throws NotRegisteredException {
+    public boolean removeAllowedRole(Bson filter, Identifier roleIdentifier) throws NotRegisteredException {
         // Execute update event if updated
-        if (super.removeRole(userIdentifier, roleIdentifier)) {
+        if (super.removeRole(filter, roleIdentifier)) {
             //Identifier[] userIdentifiers = getAllIdentifiers(getFilter(userIdentifier));
             //Identifier[] roleIdentifiers = Main.MONGODB.roleHandler.getAllIdentifiers(getFilter(roleIdentifier));
             //Main.LISTENERS.onUserRoleUpdate(userIdentifiers, roleIdentifiers, false);

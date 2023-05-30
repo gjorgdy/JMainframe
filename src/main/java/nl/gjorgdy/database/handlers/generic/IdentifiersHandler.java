@@ -1,17 +1,21 @@
 package nl.gjorgdy.database.handlers.generic;
 
 import com.mongodb.client.MongoCollection;
+import com.mongodb.client.model.Aggregates;
 import com.mongodb.client.model.Filters;
+import com.mongodb.client.model.Projections;
 import com.mongodb.client.result.UpdateResult;
 import nl.gjorgdy.database.exceptions.NotRegisteredException;
 import nl.gjorgdy.database.exceptions.RecordAlreadyConnectedException;
 import nl.gjorgdy.database.exceptions.RecordAlreadyRegisteredException;
-import nl.gjorgdy.database.identifiers.DatabaseIdentifier;
 import nl.gjorgdy.database.identifiers.Identifier;
+import nl.gjorgdy.database.identifiers.ObjectIDIdentifier;
+import nl.gjorgdy.database.identifiers.Types;
 import org.bson.Document;
+import org.bson.conversions.Bson;
 import org.bson.types.ObjectId;
-import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -28,64 +32,96 @@ public class IdentifiersHandler extends DatabaseHandler {
         DUPLICATES = duplicates;
     }
 
-    protected Document create() {
-        return new Document(KEY, new Identifier[0]);
+    protected Document createDocument() {
+        return new Document(KEY, new ArrayList<Identifier>());
     }
 
-    protected boolean addIdentifier(Identifier userIdentifier, Identifier connection) throws RecordAlreadyRegisteredException, RecordAlreadyConnectedException {
+    protected Document createDocument(Identifier identifier) {
+        return new Document(KEY, List.of(identifier));
+    }
+
+    protected boolean addIdentifier(Bson filter, Identifier connection) throws RecordAlreadyRegisteredException, RecordAlreadyConnectedException {
         // Throw error if connection is already used
         if (exists(getFilter(connection))) throw new RecordAlreadyRegisteredException();
         // If multiple is disabled, check if array already has a value
-        if (!MULTIPLE && findOne(getFilter(userIdentifier)).getList(KEY, Identifier.class).size() > 1) throw new RecordAlreadyConnectedException();
+        if (!MULTIPLE && findOne(filter).getList(KEY, Identifier.class).size() > 1) throw new RecordAlreadyConnectedException();
         // Throw error if an identifier of this type is already registered and duplicates is disabled
-        if (!DUPLICATES && exists(
-                getFilter(userIdentifier)
-                .append(
-                        KEY,
-                    Filters.elemMatch(
-                            connection.type().toString(),
-                            new Document("$exists", true)
+        if (!DUPLICATES && exists(Filters.and(
+                filter,
+                Filters.elemMatch(
+                    KEY,
+                    new Document("type", connection.type().toString())
                     )
                 )
             )
         ) throw new RecordAlreadyConnectedException();
         // Add connection
-        UpdateResult updateResult = addArrayValue(getFilter(userIdentifier), KEY, connection);
+        UpdateResult updateResult = addArrayValue(filter, KEY, connection);
         // Reload record
         return updateResult.getModifiedCount() > 0;
     }
 
-    protected boolean removeIdentifier(Identifier userIdentifier, Identifier connection) {
+    protected boolean removeIdentifier(Bson filter, Identifier connection) {
         // Add connection
-        UpdateResult updateResult = pullArrayValue(getFilter(userIdentifier), KEY, connection);
+        UpdateResult updateResult = pullArrayValue(filter, KEY, connection);
         // Reload record
         return updateResult.getModifiedCount() > 0;
     }
 
-    public ObjectId getObjectID(Identifier roleIdentifier) throws NotRegisteredException {
-        return super.getObjectID(getFilter(roleIdentifier));
+    public Bson getFilter(ObjectId objectId) {
+        return new Document("_id", objectId);
     }
 
-    public Document getFilter(Identifier.Types type, Object id) {
-        return new Document(KEY + "." + type, id);
+    public List<Bson> getFilters(List<Identifier> identifiers) {
+        return identifiers.parallelStream().map(idt ->
+            getFilter(idt.type(), idt.id())
+        ).toList();
     }
 
-    public Document getFilter(Identifier identifier) {
+    public Bson getFilter(Identifier identifier) {
         // If database identifier, return object id filter
-        if (identifier instanceof DatabaseIdentifier) return new Document("_id", identifier.id());
+        if (identifier instanceof ObjectIDIdentifier) return new Document("_id", identifier.id());
         // Otherwise just return constructed filter
-        return new Document(KEY + "." + identifier.type(), identifier.id());
+        return getFilter(identifier.type(), identifier.id());
     }
 
-    public Identifier[] getAllIdentifiers(Identifier identifier) throws NotRegisteredException {
-        return getAllIdentifiers(getFilter(identifier));
+    public Bson getFilter(Types type, Object id) {
+        return Filters.elemMatch(
+                KEY,
+                new Document("type",type.toString())
+                        .append("id", id)
+        );
     }
 
-    public Identifier[] getAllIdentifiers(Document filter) throws NotRegisteredException {
-        Document document = findOne(filter);
-        if (document == null) throw new NotRegisteredException();
-        List<Identifier> list = document.getList(KEY, Identifier.class);
-        return list.toArray(new Identifier[0]);
+    public List<Identifier> getIdentifiers(Bson filter) {
+        return getIdentifiers(List.of(filter));
+    }
+
+    public List<Identifier> getIdentifiers(List<Bson> filters) {
+        // Get document
+        List<Bson> aggregateFilter = List.of(
+                // Find document
+                Aggregates.match(Filters.or(filters)),
+                // Unwind
+                Aggregates.unwind("$identifiers"),
+                // Project
+                Aggregates.project(Projections.fields(
+                    Projections.include("identifiers"),
+                    Projections.excludeId()
+                ))
+        );
+        List<Document> documents = aggregateList(aggregateFilter);
+
+        return documents.parallelStream().map(
+                doc -> {
+                    Document identifierDocument = doc.get("identifiers", Document.class);
+                    String type = identifierDocument.getString("type");
+                    Object   id = identifierDocument.get("id");
+                    if (type != null)
+                        return Identifier.create(Types.valueOf(type), id);
+                    else return null;
+                }
+        ).filter(Objects::nonNull).toList();
     }
 
 }

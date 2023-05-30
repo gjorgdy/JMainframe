@@ -1,6 +1,8 @@
 package nl.gjorgdy.database.identifiers;
 
-public record StringIdentifier(
+import org.bson.types.ObjectId;
+
+public record ObjectIDIdentifier(
         Types type,
-        String id
+        ObjectId id
 ) implements Identifier {}

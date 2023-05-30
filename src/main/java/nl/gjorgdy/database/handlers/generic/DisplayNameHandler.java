@@ -10,6 +10,8 @@ import nl.gjorgdy.database.identifiers.Identifier;
 import org.bson.Document;
 import org.bson.conversions.Bson;
 
+import java.util.regex.Pattern;
+
 public class DisplayNameHandler extends IdentifiersHandler {
 
     static final String DISPLAY_NAME = "display_name";
@@ -19,31 +21,39 @@ public class DisplayNameHandler extends IdentifiersHandler {
     }
 
     protected Document createDocument(String displayName) {
-        return super.create().append(DISPLAY_NAME, format(displayName));
+        return super.createDocument()
+                .append(DISPLAY_NAME, format(displayName));
     }
 
-    protected boolean setDisplayName(Identifier identifier, String newDisplayName) throws InvalidDisplayNameException, NotRegisteredException {
+    protected Document createDocument(Identifier identifier, String displayName) {
+        return super.createDocument(identifier)
+            .append(DISPLAY_NAME, format(displayName));
+    }
+
+    protected boolean setDisplayName(Bson filter, String newDisplayName) throws InvalidDisplayNameException, NotRegisteredException {
         // Check if display name is already in use
         if (displayNameInUse(newDisplayName)) throw new InvalidDisplayNameException();
         // Set the value
-        UpdateResult result = setValue(getFilter(identifier), DISPLAY_NAME, newDisplayName);
+        UpdateResult result = setValue(filter, DISPLAY_NAME, newDisplayName);
         // Execute update event if value changed
         return result.getModifiedCount() > 0;
     }
 
-    public Document getFilter(String displayName) {
-        TextSearchOptions tso = new TextSearchOptions()
-                .caseSensitive(false)
-                .diacriticSensitive(false);
-        Bson textFilter = Filters.text(format(displayName), tso);
-        return new Document(DISPLAY_NAME, textFilter);
+    public String getDisplayName(Bson filter) {
+        return findOne(filter).getString(DISPLAY_NAME);
+    }
+
+    public Bson getFilter(String displayName) {
+        String regexPattern = Pattern.quote(displayName);
+        Pattern regexFilter = Pattern.compile(regexPattern, Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+        return Filters.regex(DISPLAY_NAME, regexFilter);
     }
 
     public boolean displayNameInUse(String displayName) {
         return exists(getFilter(displayName));
     }
 
-    public String format(String displayName) {
+    public static String format(String displayName) {
         return displayName.replace("_", " ");
     }
 

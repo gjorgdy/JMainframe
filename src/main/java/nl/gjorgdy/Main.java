@@ -32,8 +32,6 @@ public class Main {
         DISCORD.start();
         // Start message forwarding thread
         MESSAGE_FORWARDER.start();
-        // Test shit
-
         // Start cli on main thread
         cli();
     }
@@ -48,8 +46,6 @@ public class Main {
 
     public void cli() {
         Scanner scanner = new Scanner(System.in);
-
-        System.out.println("\n >>> Mainframe <<< \n");
 
         while (true) {
             String in;

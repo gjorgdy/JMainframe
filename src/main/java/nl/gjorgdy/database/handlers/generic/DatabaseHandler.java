@@ -1,5 +1,7 @@
 package nl.gjorgdy.database.handlers.generic;
 
+import com.mongodb.client.AggregateIterable;
+import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.Updates;
 import com.mongodb.client.result.DeleteResult;
@@ -72,15 +74,15 @@ public class DatabaseHandler {
         return document.getObjectId("_id");
     }
 
-    protected boolean exists(Bson filter) { return mongoCollection.countDocuments(filter) > 0; }
+    public boolean exists(Bson filter) { return mongoCollection.countDocuments(filter) > 0; }
 
     @Nullable
     protected Document findOne(Bson filter) {
         return mongoCollection.find(filter).first();
     }
 
-    protected List<Document> find(Bson filter) {
-        return mongoCollection.find(filter).into(new ArrayList<Document>());
+    protected FindIterable<Document> find(Bson filter) {
+        return mongoCollection.find(filter);
     }
 
     /**
@@ -107,6 +109,10 @@ public class DatabaseHandler {
         return mongoCollection.updateOne(filter, Updates.addToSet(arrayField, newValue));
     }
 
+    protected UpdateResult addEachArrayValue(Bson filter, String arrayField, List<?> newValues) {
+        return mongoCollection.updateOne(filter, Updates.addEachToSet(arrayField, newValues));
+    }
+
     /**
      * Remove an object from an array
      *
@@ -117,6 +123,22 @@ public class DatabaseHandler {
      */
     protected UpdateResult pullArrayValue(Bson filter, String arrayField, Object oldValue) {
         return mongoCollection.updateOne(filter, Updates.pull(arrayField, oldValue));
+    }
+
+    protected UpdateResult pullAllArrayValue(Bson filter, String arrayField, List<?> oldValues) {
+        return mongoCollection.updateOne(filter, Updates.pullAll(arrayField, oldValues));
+    }
+
+    protected AggregateIterable<Document> aggregateIterable(List<Bson> aggregationFilter) {
+        return mongoCollection.aggregate(aggregationFilter);
+    }
+
+    protected List<Document> aggregateList(List<Bson> aggregationFilter) {
+        return mongoCollection.aggregate(aggregationFilter).into(new ArrayList<Document>());
+    }
+
+    protected Document aggregate(List<Bson> aggregationFilter) {
+        return mongoCollection.aggregate(aggregationFilter).first();
     }
 
 }

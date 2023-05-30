@@ -1,55 +1,73 @@
 package nl.gjorgdy.events;
 
-import nl.gjorgdy.chats.Message;
 import nl.gjorgdy.database.identifiers.Identifier;
+import nl.gjorgdy.discord.Sync;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class Listeners implements UserListener, RoleListener {
 
     private final List<UserListener> userListeners;
+    private final List<RoleListener> roleListeners;
+    private final ExecutorService executor;
 
     public Listeners() {
         userListeners = new ArrayList<>();
+        roleListeners = new ArrayList<>();
+        executor = Executors.newFixedThreadPool(10);
     }
 
     public void addListener(UserListener userListener) {
         userListeners.add(userListener);
     }
 
-    @Override
-    public void onRoleDisplayNameUpdate(Identifier[] roleIdentifiers, String displayName) {
-        RoleListener.super.onRoleDisplayNameUpdate(roleIdentifiers, displayName);
+    public void addListener(RoleListener roleListener) {
+        roleListeners.add(roleListener);
     }
 
     @Override
-    public void onRoleParentUpdate(Identifier[] roleIdentifiers, Identifier[] parentRoleIdentifiers, boolean additive) {
-        RoleListener.super.onRoleParentUpdate(roleIdentifiers, parentRoleIdentifiers, additive);
+    public void onRoleDisplayNameUpdate(List<Identifier> roleIdentifiers, String displayName) {
+        roleListeners.forEach( rl ->
+                executor.submit(() -> rl.onRoleDisplayNameUpdate(roleIdentifiers, displayName))
+        );
     }
 
     @Override
-    public void onRolePermissionUpdate(Identifier[] roleIdentifiers, String permission, boolean additive) {
-        RoleListener.super.onRolePermissionUpdate(roleIdentifiers, permission, additive);
+    public void onRoleParentUpdate(List<Identifier> roleIdentifiers, List<Identifier> parentRoleIdentifiers, boolean additive) {
+        roleListeners.forEach( rl ->
+                executor.submit(() -> rl.onRoleParentUpdate(roleIdentifiers, parentRoleIdentifiers, additive))
+        );
     }
 
     @Override
-    public void onUserDisplayNameUpdate(Identifier[] userIdentifiers, String newDisplayName) {
-        UserListener.super.onUserDisplayNameUpdate(userIdentifiers, newDisplayName);
+    public void onRolePermissionUpdate(List<Identifier> roleIdentifiers, String permission, boolean additive) {
+        roleListeners.forEach( rl ->
+                executor.submit(() -> rl.onRolePermissionUpdate(roleIdentifiers, permission, additive))
+        );
     }
 
     @Override
-    public void onUserConnectionUpdate(Identifier[] userIdentifiers, Identifier connection, boolean additive) {
-        UserListener.super.onUserConnectionUpdate(userIdentifiers, connection, additive);
+    public void onUserDisplayNameUpdate(List<Identifier> userIdentifiers, String newDisplayName) {
+        userListeners.forEach( ul ->
+            executor.submit(() -> ul.onUserDisplayNameUpdate(userIdentifiers, newDisplayName))
+        );
     }
 
     @Override
-    public void onUserRoleUpdate(Identifier[] userIdentifiers, Identifier[] roleIdentifiers, boolean additive) {
-        UserListener.super.onUserRoleUpdate(userIdentifiers, roleIdentifiers, additive);
+    public void onUserConnectionUpdate(List<Identifier> userIdentifiers, Identifier connection, boolean additive) {
+        userListeners.forEach( ul ->
+                executor.submit(() -> ul.onUserConnectionUpdate(userIdentifiers, connection, additive))
+        );
     }
 
     @Override
-    public void onMessage(Message msg) {
-        UserListener.super.onMessage(msg);
+    public void onUserRoleUpdate(List<Identifier> userIdentifiers, List<Identifier> roleIdentifiers, boolean additive) {
+        userListeners.forEach( ul ->
+                executor.submit(() -> ul.onUserRoleUpdate(userIdentifiers, roleIdentifiers, additive))
+        );
     }
+
 }
