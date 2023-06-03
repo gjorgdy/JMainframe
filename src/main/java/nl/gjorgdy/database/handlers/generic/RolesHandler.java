@@ -73,35 +73,23 @@ public class RolesHandler extends DisplayNameHandler {
     }
 
     public List<ObjectId> getDocumentsRoleObjectIDs(Bson filter) throws NotRegisteredException {
-        System.out.println("gettin object ids");
         // Get document
         List<Bson> aggregateFilter = List.of(
                 // Find main document
                 Aggregates.match(filter),
                 // Get all parent OIDs
-                Aggregates.graphLookup("roles", "$roles", "_id", "_id", "parents"),
+                Aggregates.graphLookup("roles", "$roles", "roles", "_id", "parents"),
                 // Add own OID to array
                 Aggregates.project(Projections.fields(
-                        //Projections.computed("ids", new Document("$setUnion", List.of("$parents._id", List.of("$_id")))),
-                        Projections.include("parents"),
+                        Projections.computed("ids", new Document("$setUnion", List.of("$parents._id", "$roles"))),
                         Projections.excludeId()
-                )),
-                // Unwind
-                Aggregates.unwind("$parents")
-                // Group
-                //Aggregates.group(0, List.of(Accumulators.addToSet("ids", "$ids")))
+                ))
         );
-        List<Document> documents = aggregateList(aggregateFilter);
-        for (Document doc : documents) {
-            System.out.println(doc.toJson());
-        }
-        return new ArrayList<>();
-        //Document objectIDsDocument = aggregate(aggregateFilter);
-        //// If null, throw exception
-        //if (objectIDsDocument == null) throw new NotRegisteredException();
-        //System.out.println(objectIDsDocument.toJson());
-        //// Decode list into identifiers and return
-        //return objectIDsDocument.getList("ids", ObjectId.class);
+        Document objectIDsDocument = aggregate(aggregateFilter);
+        // If null, throw exception
+        if (objectIDsDocument == null) throw new NotRegisteredException();
+        // Decode list into identifiers and return
+        return objectIDsDocument.getList("ids", ObjectId.class);
     }
 
     protected boolean addRole(Bson filter, Identifier roleIdentifier) throws NotRegisteredException {
@@ -125,18 +113,19 @@ public class RolesHandler extends DisplayNameHandler {
 
     protected boolean removeRoles(Bson documentFilter, List<Identifier> roleIdentifiers) throws NotRegisteredException {
         // Get role identifiers
-        List<Bson> filters = getFilters(roleIdentifiers);
+        List<Bson> roleFilters = getFilters(roleIdentifiers);
         // Remove roles from document
-        List<ObjectId> roleObjectIds = Main.MONGODB.roleHandler.getObjectIDs(filters);
+        List<ObjectId> roleObjectIds = Main.MONGODB.roleHandler.getObjectIDs(roleFilters);
         UpdateResult removeUpdateResult = pullAllArrayValue(documentFilter, ROLES, roleObjectIds);
         // Re-add parent roles if necessary
         try {
-            List<ObjectId> updatedRoleObjectIds = Main.MONGODB.roleHandler.getDocumentsRoleObjectIDs(documentFilter);
+            List<ObjectId> updatedRoleObjectIds = getDocumentsRoleObjectIDs(documentFilter);
             UpdateResult addUpdateResult = addEachArrayValue(documentFilter, ROLES, updatedRoleObjectIds);
         } catch (NotRegisteredException e) {
-            System.err.println(e);
+            System.err.println(e.toString());
         }
         // Return true if a value was changed
         return removeUpdateResult.getModifiedCount() > 0;
     }
+
 }

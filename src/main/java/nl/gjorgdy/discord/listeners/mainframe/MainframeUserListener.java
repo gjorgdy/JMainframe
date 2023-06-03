@@ -10,13 +10,17 @@ import nl.gjorgdy.discord.Sync;
 import nl.gjorgdy.events.UserListener;
 
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class MainframeUserListener implements UserListener {
 
     private final JDA bot;
+    private final ExecutorService executor;
 
     public MainframeUserListener(JDA bot) {
         this.bot = bot;
+        executor = Executors.newFixedThreadPool(10);
     }
 
     @Override
@@ -24,33 +28,34 @@ public class MainframeUserListener implements UserListener {
         // If not additive or a discord connection, skip event
         if (connection.type() != Types.discord_user || !additive) return;
 
-        bot.getGuilds().parallelStream().forEach(guild -> {
+        bot.getGuilds().forEach(guild -> {
             Member member = guild.getMemberById((Long) connection.id());
             if (member == null) return;
-            Loader.loadMember(member);
+            executor.submit(() -> Loader.loadMember(member));
+
         });
     }
 
     @Override
     public void onUserRoleUpdate(List<Identifier> userIdentifiers, List<Identifier> roleIdentifiers, boolean additive) {
         // Update roles in all guilds
-        bot.getGuilds().parallelStream().forEach(guild -> {
+        bot.getGuilds().forEach(guild -> {
             Member member = Functions.getGuildMember(userIdentifiers, guild);
             if (member == null) return;
-            Sync.writeRoles(member, roleIdentifiers);
+            executor.submit(() -> Sync.writeRoles(member, roleIdentifiers));
         });
     }
 
     @Override
     public void onUserDisplayNameUpdate(List<Identifier> userIdentifiers, String newDisplayName) {
         // Updates name in all enabled guilds
-        bot.getGuilds().parallelStream().forEach(guild -> {
+        bot.getGuilds().forEach(guild -> {
             // Skip if guild has display name syncing disabled
             if (!Functions.guildDoesSyncDisplayName(guild)) return;
             // Update name
             Member member = Functions.getGuildMember(userIdentifiers, guild);
             if (member == null) return;
-            Sync.writeDisplayName(member, newDisplayName);
+            executor.submit(() -> Sync.writeDisplayName(member, newDisplayName));
         });
 
     }

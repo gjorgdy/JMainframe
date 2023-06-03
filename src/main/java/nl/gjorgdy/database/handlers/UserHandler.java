@@ -65,6 +65,24 @@ public class UserHandler extends RolesHandler {
         return false;
     }
 
+    public boolean syncRoles(Bson userFilter, List<Identifier> blacklistRoleIdentifiers, List<Identifier> whitelistRoleIdentifiers) {
+        try {
+            boolean added = super.addRoles(userFilter, whitelistRoleIdentifiers);
+            boolean removed = super.removeRoles(userFilter, blacklistRoleIdentifiers);
+            // Execute update event if updated
+            if (removed || added) {
+                List<Identifier> userIdentifiers = getIdentifiers(userFilter);
+                List<Identifier> roleIdentifiers = getDocumentsRoleIdentifiers(userFilter);
+                Main.LISTENERS.onUserRoleUpdate(userIdentifiers, roleIdentifiers, true);
+                return true;
+            }
+        } catch (NotRegisteredException e) {
+            System.err.println("Failed to add roles : " + e);
+            System.err.println("User : " + userFilter.toBsonDocument().toJson());
+        }
+        return false;
+    }
+
     @Override
     public boolean addRole(Bson userFilter, Identifier roleIdentifier) {
         return addRoles(userFilter, List.of(roleIdentifier));
@@ -82,6 +100,7 @@ public class UserHandler extends RolesHandler {
             }
         } catch (NotRegisteredException e) {
             System.err.println("Failed to add roles : " + e);
+            System.err.println("User : " + userFilter.toBsonDocument().toJson());
         }
         return false;
     }
@@ -108,7 +127,7 @@ public class UserHandler extends RolesHandler {
         return false;
     }
 
-    public boolean addConnection(Bson filter, Identifier connectionIdentifier) throws NotRegisteredException, RecordAlreadyConnectedException, RecordAlreadyRegisteredException {
+    public boolean addConnection(Bson filter, Identifier connectionIdentifier) throws RecordAlreadyConnectedException, RecordAlreadyRegisteredException {
         if (super.addIdentifier(filter, connectionIdentifier)) {
             // Execute update event
             List<Identifier> userIdentifiers = getIdentifiers(filter);
@@ -118,7 +137,7 @@ public class UserHandler extends RolesHandler {
         return false;
     }
 
-    public boolean removeConnection(Bson filter, Identifier connectionIdentifier) throws NotRegisteredException {
+    public boolean removeConnection(Bson filter, Identifier connectionIdentifier) {
         if (super.removeIdentifier(filter, connectionIdentifier)) {
             // Execute update event
             List<Identifier> userIdentifiers = getIdentifiers(filter);

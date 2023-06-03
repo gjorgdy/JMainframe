@@ -7,7 +7,6 @@ import net.dv8tion.jda.api.exceptions.InsufficientPermissionException;
 import nl.gjorgdy.Main;
 import nl.gjorgdy.database.exceptions.InvalidDisplayNameException;
 import nl.gjorgdy.database.exceptions.NotRegisteredException;
-import nl.gjorgdy.database.handlers.RoleHandler;
 import nl.gjorgdy.database.handlers.UserHandler;
 import nl.gjorgdy.database.identifiers.Identifier;
 import nl.gjorgdy.database.identifiers.Types;
@@ -36,13 +35,11 @@ public class Sync {
     }
 
     public static void writeDisplayName(Member member, Bson userFilter) {
-        UserHandler uh = Main.MONGODB.userHandler;
-        String userDisplayName = uh.getDisplayName(userFilter);
+        String userDisplayName = Main.MONGODB.userHandler.getDisplayName(userFilter);
         writeDisplayName(member, userDisplayName);
     }
 
     public static void writeDisplayName(Member member, String userDisplayName) {
-        UserHandler uh = Main.MONGODB.userHandler;
         try {
             member.modifyNickname(userDisplayName).queue();
         } catch (HierarchyException | InsufficientPermissionException ignored) {}
@@ -69,8 +66,8 @@ public class Sync {
         // Make changes
         UserHandler uh = Main.MONGODB.userHandler;
         Bson userFilter = uh.getFilter(Functions.createIdentifier(member));
-        uh.removeRoles(userFilter, blacklistRoleIdentifiers);
-        uh.addRoles(userFilter, whitelistRoleIdentifiers);
+        uh.syncRoles(userFilter, blacklistRoleIdentifiers, whitelistRoleIdentifiers);
+        System.out.println("Read roles... from " + member.getEffectiveName() + " in " + member.getGuild().getName());
     }
 
     public static void readRolesAdditive(Member member) {
@@ -87,7 +84,6 @@ public class Sync {
      *
      */
     public static void writeRoles(Member member, List<Identifier> userRoleIdentifiers) {
-        RoleHandler rh = Main.MONGODB.roleHandler;
         List<Role> memberRoles = member.getRoles();
         List<Role> updatedMemberRoles = new ArrayList<>(List.copyOf(memberRoles));
         // Remove roles
@@ -115,7 +111,8 @@ public class Sync {
             }
         }
         // Update member
-        member.getGuild().modifyMemberRoles(member, updatedMemberRoles).queue();
+        member.getGuild().modifyMemberRoles(member, updatedMemberRoles).reason("sync").queue();
+        System.out.println("Writing roles... to " + member.getEffectiveName() + " in " + member.getGuild().getName());
     }
 
     public static void writeRolesAdditive(Member member) throws NotRegisteredException {
@@ -125,7 +122,6 @@ public class Sync {
     }
 
     public static void writeRolesAdditive(Member member, List<Identifier> userRoleIdentifiers) {
-        RoleHandler rh = Main.MONGODB.roleHandler;
         List<Role> memberRoles = member.getRoles();
         List<Role> updatedMemberRoles = new ArrayList<>(List.copyOf(memberRoles));
         // Add roles
@@ -143,7 +139,7 @@ public class Sync {
             }
         }
         // Update member
-        member.getGuild().modifyMemberRoles(member, updatedMemberRoles).queue();
+        member.getGuild().modifyMemberRoles(member, updatedMemberRoles).reason("sync").queue();
     }
 
 }

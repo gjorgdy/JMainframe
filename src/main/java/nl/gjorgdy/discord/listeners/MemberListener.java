@@ -1,9 +1,9 @@
 package nl.gjorgdy.discord.listeners;
 
-import net.dv8tion.jda.api.audit.ActionType;
 import net.dv8tion.jda.api.audit.AuditLogEntry;
 import net.dv8tion.jda.api.entities.Role;
-import net.dv8tion.jda.api.events.guild.GenericGuildEvent;
+import net.dv8tion.jda.api.entities.User;
+import net.dv8tion.jda.api.events.guild.member.GenericGuildMemberEvent;
 import net.dv8tion.jda.api.events.guild.member.GuildMemberRoleAddEvent;
 import net.dv8tion.jda.api.events.guild.member.GuildMemberRoleRemoveEvent;
 import net.dv8tion.jda.api.events.guild.member.update.GuildMemberUpdateNicknameEvent;
@@ -25,7 +25,6 @@ public class MemberListener extends ListenerAdapter {
         // Skip event if executed by this bot
         if (isEventByBot(event)) return;
         // Check if any role is linked
-        System.out.println(event.getMember().getEffectiveName());
         for (Role role : event.getRoles()) {
             if (Functions.isLinked(role)) {
                 Sync.readRoles(event.getMember());
@@ -39,7 +38,6 @@ public class MemberListener extends ListenerAdapter {
         // Skip event if executed by this bot
         if (isEventByBot(event)) return;
         // Check if any role is linked
-        System.out.println(event.getMember().getEffectiveName());
         for (Role role : event.getRoles()) {
             if (Functions.isLinked(role)) {
                 Sync.readRoles(event.getMember());
@@ -60,10 +58,13 @@ public class MemberListener extends ListenerAdapter {
         Sync.readDisplayName(event.getMember());
     }
 
-    public static boolean isEventByBot(GenericGuildEvent event) {
+    public static boolean isEventByBot(GenericGuildMemberEvent event) {
         try {
-            Optional<AuditLogEntry> optAuditLogEntry = event.getGuild().retrieveAuditLogs().stream().filter(_auditLogEntry -> _auditLogEntry.getType() == ActionType.MEMBER_UPDATE).findFirst();
-            return optAuditLogEntry.isPresent() && optAuditLogEntry.get().getUser() == event.getJDA().getSelfUser();
+            Optional<AuditLogEntry> optAuditLogEntry = event.getGuild().retrieveAuditLogs()
+                    .limit(1).complete().stream().findFirst();
+            if (optAuditLogEntry.isEmpty()) return true;
+            User user = optAuditLogEntry.get().getUser();
+            return user != null && user.equals(event.getJDA().getSelfUser());
         } catch (InsufficientPermissionException e) {
             System.err.println("Insufficient permission : " + e.getPermission() + " in " + event.getGuild().getName());
             return true;
