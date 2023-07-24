@@ -60,16 +60,17 @@ public class UserHandler extends DatabaseHandler {
     }
 
     public boolean setDisplayName(Bson userFilter, String newDisplayName, String[] affix) throws InvalidDisplayNameException {
+        String formattedDisplayName;
         String suffixRegex = " " + affix[1] + "$";
-        newDisplayName = newDisplayName.replaceAll(suffixRegex, "");
+        formattedDisplayName = newDisplayName.replaceAll(suffixRegex, "");
         String prefixRegex = "^" + affix[0] + " ";
-        newDisplayName = newDisplayName.replaceAll(prefixRegex, "");
-        return setDisplayName(userFilter, newDisplayName);
+        formattedDisplayName = formattedDisplayName.replaceAll(prefixRegex, "");
+        return setDisplayName(userFilter, formattedDisplayName, newDisplayName.equals(formattedDisplayName));
     }
 
-    public boolean setDisplayName(Bson userFilter, String newDisplayName) throws InvalidDisplayNameException {
+    public boolean setDisplayName(Bson userFilter, String newDisplayName, Boolean forceEvent) throws InvalidDisplayNameException {
          try {
-            if (DISPLAY_NAME.set(userFilter, newDisplayName)) {
+            if (DISPLAY_NAME.set(userFilter, newDisplayName) || forceEvent) {
                 List<Identifier> userIdentifiers = IDENTIFIERS.getAll(userFilter);
                 // Send event
                 Mainframe.Events.onUserDisplayNameUpdate(userIdentifiers, newDisplayName);
