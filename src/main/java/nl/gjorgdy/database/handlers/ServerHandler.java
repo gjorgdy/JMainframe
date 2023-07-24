@@ -4,53 +4,85 @@ import com.mongodb.client.MongoCollection;
 import nl.gjorgdy.database.exceptions.InvalidDisplayNameException;
 import nl.gjorgdy.database.exceptions.NotRegisteredException;
 import nl.gjorgdy.database.exceptions.RecordAlreadyRegisteredException;
-import nl.gjorgdy.database.handlers.generic.DisplayNameHandler;
+import nl.gjorgdy.database.handlers.components.*;
 import nl.gjorgdy.database.identifiers.Identifier;
 import org.bson.Document;
 import org.bson.conversions.Bson;
 
-public class ServerHandler extends DisplayNameHandler {
+public class ServerHandler extends DatabaseHandler {
 
     // Keys
-    static final String SYNC = "sync";
-    static final String DISPLAY_NAMES = "display_names";
-    static final String ROLES = "roles";
+    private final DisplayNameHandler DISPLAY_NAME;
+    private final IdentifiersHandler IDENTIFIERS;
+    private final SyncRulesHandler SYNC_RULES;
+    private final AffixHandler AFFIX;
 
     public ServerHandler(MongoCollection<Document> mongoCollection) {
-        super(mongoCollection, false, false);
+        super(mongoCollection);
+        DISPLAY_NAME = new DisplayNameHandler(mongoCollection);
+        IDENTIFIERS = new IdentifiersHandler(mongoCollection, false, false);
+        SYNC_RULES = new SyncRulesHandler(mongoCollection);
+        AFFIX = new AffixHandler(mongoCollection);
     }
 
-    public boolean register(Identifier connection, String displayName) throws InvalidDisplayNameException, RecordAlreadyRegisteredException {
+    public void register(Identifier serverIdentifier, String displayName, boolean displayNames, boolean roles, String prefix, String suffix) throws InvalidDisplayNameException, RecordAlreadyRegisteredException {
         // Throw an error if this identifier is registered
-        if (exists(getFilter(connection))) throw new RecordAlreadyRegisteredException();
+        if (exists(IDENTIFIERS.getFilter(serverIdentifier))) throw new RecordAlreadyRegisteredException();
         // Throw an error if display name is already in use
-        if (displayNameInUse(displayName)) throw new InvalidDisplayNameException();
+        if (DISPLAY_NAME.inUse(displayName)) throw new InvalidDisplayNameException();
         // Create a new user
-        Document serverDocument = createDocument(connection, displayName)
-            .append(SYNC, new Document(DISPLAY_NAMES, false).append(ROLES, false));
+        Document serverDocument = new Document();
+        DISPLAY_NAME.writeDocument(serverDocument, displayName);
+        IDENTIFIERS.writeDocument(serverDocument, serverIdentifier);
+        SYNC_RULES.writeDocument(serverDocument, displayNames, roles);
+        AFFIX.writeDocument(serverDocument, prefix, suffix);
         // Insert into database and return result
-        return insert(serverDocument).wasAcknowledged();
+        insert(serverDocument).wasAcknowledged();
+    }
+
+    public void unregister(Identifier serverIdentifier) throws NotRegisteredException {
+        if (!exists(IDENTIFIERS.getFilter(serverIdentifier))) throw new NotRegisteredException();
+        // Insert into database and return result
+        remove(getFilter(serverIdentifier)).wasAcknowledged();
     }
 
     public boolean setDisplayName(Bson filter, String newDisplayName) throws InvalidDisplayNameException, NotRegisteredException {
-        return super.setDisplayName(filter, newDisplayName);
+        return DISPLAY_NAME.set(filter, newDisplayName);
     }
 
     public boolean doesSyncDisplayNames(Bson filter) {
-        Document serverDocument = findOne(filter);
-        return serverDocument == null || serverDocument.get(SYNC, Document.class).getBoolean(DISPLAY_NAMES);
+        return SYNC_RULES.doesSyncDisplayNames(filter);
     }
 
     public boolean doesSyncRoles(Bson filter) {
-        Document serverDocument = findOne(filter);
-        return serverDocument == null || serverDocument.get(SYNC, Document.class).getBoolean(ROLES);
+        return SYNC_RULES.doesSyncRoles(filter);
     }
 
-    public boolean setSyncDisplayNames(Bson filter, boolean value) {
-        return setValue(filter, (SYNC + "." + DISPLAY_NAMES), value).getModifiedCount() > 0;
+    public void setSyncDisplayNames(Bson filter, boolean value) {
+        SYNC_RULES.setSyncDisplayNames(filter, value);
     }
 
-    public boolean setSyncRoles(Bson filter, boolean value) {
-        return setValue(filter, (SYNC + "." + ROLES), value).getModifiedCount() > 0;
+    public void setSyncRoles(Bson filter, boolean value) {
+        SYNC_RULES.setSyncRoles(filter, value);
+    }
+
+    public boolean setPrefix(Bson filter, String prefix) {
+        return AFFIX.setPrefix(filter, prefix);
+    }
+
+    public boolean setSuffix(Bson filter, String suffix) {
+        return AFFIX.setSuffix(filter, suffix);
+    }
+
+    public String[] getAffix(Bson filter) throws NotRegisteredException {
+        return AFFIX.get(filter);
+    }
+
+    public Bson getFilter(String name) {
+        return DISPLAY_NAME.getFilter(name);
+    }
+
+    public Bson getFilter(Identifier identifier) {
+        return IDENTIFIERS.getFilter(identifier);
     }
 }

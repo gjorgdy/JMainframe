@@ -1,11 +1,10 @@
-package nl.gjorgdy.database.handlers.generic;
+package nl.gjorgdy.database.handlers.components;
 
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.Aggregates;
 import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.Projections;
 import com.mongodb.client.result.UpdateResult;
-import nl.gjorgdy.database.exceptions.NotRegisteredException;
 import nl.gjorgdy.database.exceptions.RecordAlreadyConnectedException;
 import nl.gjorgdy.database.exceptions.RecordAlreadyRegisteredException;
 import nl.gjorgdy.database.identifiers.Identifier;
@@ -26,21 +25,21 @@ public class IdentifiersHandler extends DatabaseHandler {
     final boolean MULTIPLE;
     final boolean DUPLICATES;
 
-    protected IdentifiersHandler(MongoCollection<Document> mongoCollection, boolean multiple, boolean duplicates) {
+    public IdentifiersHandler(MongoCollection<Document> mongoCollection, boolean multiple, boolean duplicates) {
         super(mongoCollection);
         MULTIPLE = multiple;
         DUPLICATES = duplicates;
     }
 
-    protected Document createDocument() {
-        return new Document(KEY, new ArrayList<Identifier>());
+    public Document writeDocument(Document document) {
+        return document.append(KEY, new ArrayList<Identifier>());
     }
 
-    protected Document createDocument(Identifier identifier) {
-        return new Document(KEY, List.of(identifier));
+    public Document writeDocument(Document document, Identifier identifier) {
+        return document.append(KEY, List.of(identifier.resetTime()));
     }
 
-    protected boolean addIdentifier(Bson filter, Identifier connection) throws RecordAlreadyRegisteredException, RecordAlreadyConnectedException {
+    public boolean add(Bson filter, Identifier connection) throws RecordAlreadyRegisteredException, RecordAlreadyConnectedException {
         // Throw error if connection is already used
         if (exists(getFilter(connection))) throw new RecordAlreadyRegisteredException();
         // If multiple is disabled, check if array already has a value
@@ -56,12 +55,12 @@ public class IdentifiersHandler extends DatabaseHandler {
             )
         ) throw new RecordAlreadyConnectedException();
         // Add connection
-        UpdateResult updateResult = addArrayValue(filter, KEY, connection);
+        UpdateResult updateResult = addArrayValue(filter, KEY, connection.resetTime());
         // Reload record
         return updateResult.getModifiedCount() > 0;
     }
 
-    protected boolean removeIdentifier(Bson filter, Identifier connection) {
+    public boolean remove(Bson filter, Identifier connection) {
         // Add connection
         UpdateResult updateResult = pullArrayValue(filter, KEY, connection);
         // Reload record
@@ -93,11 +92,11 @@ public class IdentifiersHandler extends DatabaseHandler {
         );
     }
 
-    public List<Identifier> getIdentifiers(Bson filter) {
-        return getIdentifiers(List.of(filter));
+    public List<Identifier> getAll(Bson filter) {
+        return getAll(List.of(filter));
     }
 
-    public List<Identifier> getIdentifiers(List<Bson> filters) {
+    public List<Identifier> getAll(List<Bson> filters) {
         // Get document
         List<Bson> aggregateFilter = List.of(
                 // Find document

@@ -1,4 +1,4 @@
-package nl.gjorgdy.database.handlers.generic;
+package nl.gjorgdy.database.handlers.components;
 
 import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.FindIterable;

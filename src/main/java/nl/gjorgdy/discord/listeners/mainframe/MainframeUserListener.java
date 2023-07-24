@@ -31,8 +31,7 @@ public class MainframeUserListener implements UserListener {
         bot.getGuilds().forEach(guild -> {
             Member member = guild.getMemberById((Long) connection.id());
             if (member == null) return;
-            executor.submit(() -> Loader.loadMember(member));
-
+            new Loader(bot).loadMember(member);
         });
     }
 
@@ -40,9 +39,10 @@ public class MainframeUserListener implements UserListener {
     public void onUserRoleUpdate(List<Identifier> userIdentifiers, List<Identifier> roleIdentifiers, boolean additive) {
         // Update roles in all guilds
         bot.getGuilds().forEach(guild -> {
+            System.out.println(guild.getName());
             Member member = Functions.getGuildMember(userIdentifiers, guild);
             if (member == null) return;
-            executor.submit(() -> Sync.writeRoles(member, roleIdentifiers));
+            Sync.writeRoles(member, roleIdentifiers);
         });
     }
 
@@ -54,9 +54,10 @@ public class MainframeUserListener implements UserListener {
             if (!Functions.guildDoesSyncDisplayName(guild)) return;
             // Update name
             Member member = Functions.getGuildMember(userIdentifiers, guild);
-            if (member == null) return;
-            executor.submit(() -> Sync.writeDisplayName(member, newDisplayName));
+            if (member == null) {
+                return;
+            }
+            Sync.writeDisplayName(member, newDisplayName);
         });
-
     }
 }

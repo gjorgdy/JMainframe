@@ -1,38 +1,33 @@
-package nl.gjorgdy.database.handlers.generic;
+package nl.gjorgdy.database.handlers.components;
 
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.*;
 import com.mongodb.client.result.UpdateResult;
-import nl.gjorgdy.Main;
+import nl.gjorgdy.Mainframe;
 import nl.gjorgdy.database.exceptions.NotRegisteredException;
 import nl.gjorgdy.database.identifiers.Identifier;
 import nl.gjorgdy.database.identifiers.Types;
 import org.bson.Document;
 import org.bson.conversions.Bson;
 import org.bson.types.ObjectId;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class RolesHandler extends DisplayNameHandler {
+public class RolesHandler extends DatabaseHandler {
 
     // Key
-    static final String ROLES = "roles"; // DatabaseIdentifier
+    static final String KEY = "roles"; // List<ObjectID>
+    private final IdentifiersHandler identifiersHandler;
 
-    @Override
-    protected Document createDocument(String displayName) {
-        return super.createDocument(displayName)
-                .append(ROLES, new ArrayList<ObjectId>());
+    public RolesHandler(MongoCollection<Document> mongoCollection, IdentifiersHandler identifiersHandler) {
+        super(mongoCollection);
+        this.identifiersHandler = identifiersHandler;
     }
 
-    @Override
-    protected Document createDocument(Identifier identifier, String displayName) {
-        return super.createDocument(identifier, displayName)
-                .append(ROLES, new ArrayList<ObjectId>());
-    }
-
-    protected RolesHandler(MongoCollection<Document> mongoCollection, boolean multiple, boolean duplicates) {
-        super(mongoCollection, multiple, duplicates);
+    public void writeDocument(@NotNull Document document) {
+        document.append(KEY, new ArrayList<ObjectId>());
     }
 
     /**
@@ -42,13 +37,13 @@ public class RolesHandler extends DisplayNameHandler {
      * @return list of all identifiers assigned to document
      * @throws NotRegisteredException if filter does not match document
      */
-    public List<Identifier> getDocumentsRoleIdentifiers(Bson filter) throws NotRegisteredException {
+    public List<Identifier> getIdentifiers(Bson filter) throws NotRegisteredException {
         // Get document
         List<Bson> aggregateFilter = List.of(
                 // Find main document
                 Aggregates.match(filter),
                 // Get all associated roles
-                Aggregates.lookup("roles", ROLES, "_id", ROLES),
+                Aggregates.lookup("roles", KEY, "_id", KEY),
                 // Project the documents into a roles field
                 Aggregates.project(Projections.computed("idt", "$roles.identifiers")),
                 // Take values out of arrays
@@ -92,35 +87,35 @@ public class RolesHandler extends DisplayNameHandler {
         return objectIDsDocument.getList("ids", ObjectId.class);
     }
 
-    protected boolean addRole(Bson filter, Identifier roleIdentifier) throws NotRegisteredException {
-        return addRoles(filter, List.of(roleIdentifier));
+    public boolean add(Bson filter, Identifier roleIdentifier) throws NotRegisteredException {
+        return add(filter, List.of(roleIdentifier));
     }
 
-    protected boolean addRoles(Bson documentFilter, List<Identifier> roleIdentifiers) throws NotRegisteredException {
+    public boolean add(Bson documentFilter, List<Identifier> roleIdentifiers) throws NotRegisteredException {
         if (roleIdentifiers.size() == 0) return false;
         // Get role objectIDs
-        List<Bson> roleFilters = getFilters(roleIdentifiers);
-        List<ObjectId> roleObjectIds = Main.MONGODB.roleHandler.getObjectIDs(roleFilters);
+        List<Bson> roleFilters = identifiersHandler.getFilters(roleIdentifiers);
+        List<ObjectId> roleObjectIds = Mainframe.ROLES.getObjectIDs(roleFilters);
         // Add role DB ID to user
-        UpdateResult updateResult = addEachArrayValue(documentFilter, ROLES, roleObjectIds);
+        UpdateResult updateResult = addEachArrayValue(documentFilter, KEY, roleObjectIds);
         // Return if a value was changed
         return updateResult.getModifiedCount() > 0;
     }
 
-    protected boolean removeRole(Bson filter, Identifier roleIdentifier) throws NotRegisteredException {
-        return removeRoles(filter, List.of(roleIdentifier));
+    public boolean remove(Bson filter, Identifier roleIdentifier) throws NotRegisteredException {
+        return remove(filter, List.of(roleIdentifier));
     }
 
-    protected boolean removeRoles(Bson documentFilter, List<Identifier> roleIdentifiers) throws NotRegisteredException {
+    public boolean remove(Bson documentFilter, List<Identifier> roleIdentifiers) throws NotRegisteredException {
         // Get role identifiers
-        List<Bson> roleFilters = getFilters(roleIdentifiers);
+        List<Bson> roleFilters = identifiersHandler.getFilters(roleIdentifiers);
         // Remove roles from document
-        List<ObjectId> roleObjectIds = Main.MONGODB.roleHandler.getObjectIDs(roleFilters);
-        UpdateResult removeUpdateResult = pullAllArrayValue(documentFilter, ROLES, roleObjectIds);
+        List<ObjectId> roleObjectIds = Mainframe.ROLES.getObjectIDs(roleFilters);
+        UpdateResult removeUpdateResult = pullAllArrayValue(documentFilter, KEY, roleObjectIds);
         // Re-add parent roles if necessary
         try {
             List<ObjectId> updatedRoleObjectIds = getDocumentsRoleObjectIDs(documentFilter);
-            UpdateResult addUpdateResult = addEachArrayValue(documentFilter, ROLES, updatedRoleObjectIds);
+            UpdateResult addUpdateResult = addEachArrayValue(documentFilter, KEY, updatedRoleObjectIds);
         } catch (NotRegisteredException e) {
             System.err.println(e.toString());
         }

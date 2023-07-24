@@ -1,6 +1,5 @@
 package nl.gjorgdy.events;
 
-import nl.gjorgdy.chats.Message;
 import nl.gjorgdy.database.identifiers.Identifier;
 
 import java.util.List;
@@ -14,6 +13,4 @@ public interface UserListener {
 
     default void onUserRoleUpdate(List<Identifier> userIdentifiers, List<Identifier> roleIdentifiers, boolean additive) {}
 
-    // Message events
-    default void onMessage(Message msg) {}
 }

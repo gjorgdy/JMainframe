@@ -5,7 +5,7 @@ import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.entities.channel.Channel;
-import nl.gjorgdy.Main;
+import nl.gjorgdy.Mainframe;
 import nl.gjorgdy.database.handlers.RoleHandler;
 import nl.gjorgdy.database.handlers.ServerHandler;
 import nl.gjorgdy.database.identifiers.Identifier;
@@ -36,17 +36,17 @@ public class Functions {
     }
 
     public static boolean guildDoesSyncDisplayName(Guild guild) {
-        ServerHandler sh = Main.MONGODB.serverHandler;
-        return sh.doesSyncRoles(sh.getFilter(createIdentifier(guild)));
+        ServerHandler sh = Mainframe.SERVERS;
+        return sh.doesSyncDisplayNames(sh.getFilter(createIdentifier(guild)));
     }
 
     public static boolean isLinked(Role role) {
-        RoleHandler rh = Main.MONGODB.roleHandler;
+        RoleHandler rh = Mainframe.ROLES;
         return rh.exists(rh.getFilter(createIdentifier(role)));
     }
 
     public static boolean isLinked(Identifier roleIdentifier) {
-        RoleHandler rh = Main.MONGODB.roleHandler;
+        RoleHandler rh = Mainframe.ROLES;
         return rh.exists(rh.getFilter(roleIdentifier));
     }
 

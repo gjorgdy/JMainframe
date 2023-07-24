@@ -1,11 +1,8 @@
 package nl.gjorgdy.discord;
 
 import net.dv8tion.jda.api.JDA;
-import net.dv8tion.jda.api.entities.Activity;
-import net.dv8tion.jda.api.entities.Guild;
-import net.dv8tion.jda.api.entities.Member;
-import net.dv8tion.jda.api.entities.Role;
-import nl.gjorgdy.Main;
+import net.dv8tion.jda.api.entities.*;
+import nl.gjorgdy.Mainframe;
 import nl.gjorgdy.database.exceptions.InvalidDisplayNameException;
 import nl.gjorgdy.database.exceptions.NotRegisteredException;
 import nl.gjorgdy.database.exceptions.RecordAlreadyRegisteredException;
@@ -16,99 +13,93 @@ import nl.gjorgdy.database.identifiers.Identifier;
 import org.bson.conversions.Bson;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class Loader extends Thread {
 
     private final JDA bot;
-    private final ExecutorService executor;
-
+    private final ExecutorService executor = Executors.newFixedThreadPool(10);
+    private final List<Long> loadedMembers = new ArrayList<>();
     public Loader(JDA bot) {
         this.bot = bot;
-        executor = Executors.newFixedThreadPool(10);
     }
 
     @Override
     public void run() {
-        bot.getGuilds().forEach(guild -> {
-            executor.submit(() -> loadGuild(guild));
-        });
-
+        // Sync all members
+        bot.getPresence().setActivity(Activity.watching("members"));
+        bot.getGuilds().forEach(guild ->
+            executor.submit(() -> loadGuild(guild))
+        );
+        // Loaded
         bot.getPresence().setActivity(Activity.watching(bot.getGuilds().size() + " servers"));
     }
 
     public void loadGuild(Guild guild) {
-        StringBuilder status = new StringBuilder("\n> " + guild.getName());
-        ServerHandler sh = Main.MONGODB.serverHandler;
+        // Return if not registered
+        ServerHandler sh = Mainframe.SERVERS;
         Identifier guildIdentifier = Functions.createIdentifier(guild);
-        if (sh.exists(sh.getFilter(guildIdentifier))) {
-            // Get display name from guild
-            try {
-                sh.setDisplayName(sh.getFilter(guildIdentifier), guild.getName());
-            } catch (InvalidDisplayNameException | NotRegisteredException ignored) {}
-        } else {
-            // Register the guild
-            try {
-                sh.register(guildIdentifier, guild.getName());
-            } catch (InvalidDisplayNameException | RecordAlreadyRegisteredException ignored) {}
+        if (!sh.exists(sh.getFilter(guildIdentifier))) {
+            Discord.logger.alert("Skipping unregistered guild '" + guild.getName() + "' ");
+            return;
         }
-        // Load commands
-        SlashCommands.create(guild);
+        StringBuilder status = new StringBuilder("Loaded " + guild.getName());
         // Load users (All)
         boolean guildSyncsDisplayName = sh.doesSyncDisplayNames(sh.getFilter(guildIdentifier));
         guild.getMembers().forEach(member ->
             executor.submit(() -> loadMember(member, guildSyncsDisplayName))
         );
-        status.append("\n| Loaded users");
+        status.append(" | Members");
         // Load roles (Linked)
         boolean guildSyncsRoles = sh.doesSyncRoles(sh.getFilter(guildIdentifier));
         if (guildSyncsRoles) {
             guild.getRoles().forEach(role ->
                 executor.submit(() -> loadRole(role))
             );
-            status.append("\n| Loaded roles");
+            status.append(" | Roles");
         }
         // Print
-        System.out.println(status.toString());
+        Discord.logger.log(status.toString());
     }
 
     public static void loadRole(@NotNull Role role) {
-        RoleHandler rh = Main.MONGODB.roleHandler;
+        RoleHandler rh = Mainframe.ROLES;
         Identifier roleIdentifier = Functions.createIdentifier(role);
         Bson roleFilter = rh.getFilter(roleIdentifier);
         // Set color
         try {
-            int color = rh.getColor(roleFilter);
-            role.getManager().setColor(color).queue();
-        } catch (NotRegisteredException ignored) {}
+            if (rh.exists(roleFilter)) {
+                int color = rh.getColor(roleFilter);
+                role.getManager().setColor(color).queue();
+            }
+        } catch (NotRegisteredException e) {
+            Discord.logger.error("Failed to load role \"" + role.getName() + "\" : \n" + e);
+        }
     }
 
-    public static void loadMember(@NotNull Member member) {
-        loadMember(member, false);
+    public void loadMember(@NotNull Member member) {
+        ServerHandler sh = Mainframe.SERVERS;
+        Identifier guildIdentifier = Functions.createIdentifier(member.getGuild());
+        boolean guildSyncsDisplayName = sh.doesSyncDisplayNames(sh.getFilter(guildIdentifier));
+        loadMember(member, guildSyncsDisplayName);
     }
 
-    public static void loadMember(@NotNull Member member, boolean syncDisplayName) {
-        UserHandler uh = Main.MONGODB.userHandler;
+    public void loadMember(@NotNull Member member, boolean syncDisplayName) {
+        UserHandler uh = Mainframe.USERS;
         Identifier userIdentifier = Functions.createIdentifier(member);
         // Register if it doesn't exist yet
-        if (!uh.exists(uh.getFilter(userIdentifier))) {
+        if (!uh.exists(uh.getFilter(userIdentifier)) && !loadedMembers.contains(member.getIdLong())) {
+            loadedMembers.add(member.getIdLong());
             try {
                 uh.register(userIdentifier, member.getEffectiveName());
             } catch (RecordAlreadyRegisteredException | InvalidDisplayNameException e) {
-                return;
+                Discord.logger.error("Failed to load member '" + member.getEffectiveName() + "' \n" + e);
             }
         }
-    // Sync Display Name
-        if (syncDisplayName)
-            Sync.writeDisplayName(member);
-    // Sync Roles - additive
-        try {
-            Sync.readRolesAdditive(member);
-            Sync.writeRolesAdditive(member);
-        } catch (NotRegisteredException e) {
-            System.err.println("Failed to sync member roles '" + member.getEffectiveName() + "' " + e);
-        }
+        Sync.member(member, syncDisplayName);
     }
 
 }

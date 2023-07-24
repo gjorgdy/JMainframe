@@ -4,39 +4,53 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.*;
 import com.mongodb.client.result.InsertOneResult;
 import com.mongodb.client.result.UpdateResult;
-import nl.gjorgdy.Main;
+import nl.gjorgdy.Mainframe;
 import nl.gjorgdy.database.exceptions.InvalidDisplayNameException;
 import nl.gjorgdy.database.exceptions.NotRegisteredException;
 import nl.gjorgdy.database.exceptions.RecordAlreadyConnectedException;
 import nl.gjorgdy.database.exceptions.RecordAlreadyRegisteredException;
-import nl.gjorgdy.database.handlers.generic.RolesHandler;
+import nl.gjorgdy.database.handlers.components.DatabaseHandler;
+import nl.gjorgdy.database.handlers.components.DisplayNameHandler;
+import nl.gjorgdy.database.handlers.components.IdentifiersHandler;
+import nl.gjorgdy.database.handlers.components.RolesHandler;
 import nl.gjorgdy.database.identifiers.Identifier;
-import nl.gjorgdy.database.identifiers.Types;
 import org.bson.Document;
 import org.bson.conversions.Bson;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class RoleHandler extends RolesHandler {
+public class RoleHandler extends DatabaseHandler {
 
-    // Keys
-    //  extends RolesHandler -> DisplayNameHandler -> IdentifierHandler
+    // Components
     static final String PERMISSIONS = "permissions"; // List<String>
     static final String COLOR = "color"; // int
+    private final DisplayNameHandler DISPLAY_NAME;
+    private final IdentifiersHandler IDENTIFIERS;
+    private final RolesHandler PARENT_ROLES;
 
     public RoleHandler(MongoCollection<Document> mongoCollection) {
-        super(mongoCollection,true, true);
+        super(mongoCollection);
+        IDENTIFIERS = new IdentifiersHandler(mongoCollection, true, true);
+        DISPLAY_NAME = new DisplayNameHandler(mongoCollection);
+        PARENT_ROLES = new RolesHandler(mongoCollection, IDENTIFIERS);
     }
 
-    public boolean register(Identifier connection, @NotNull String displayName, int color) throws InvalidDisplayNameException, RecordAlreadyRegisteredException {
-        if (exists(getFilter(connection))) throw new RecordAlreadyRegisteredException();
+    public boolean register(@Nullable Identifier connection, @NotNull String displayName, int color) throws InvalidDisplayNameException, RecordAlreadyRegisteredException {
+        if (connection != null && exists(IDENTIFIERS.getFilter(connection))) throw new RecordAlreadyRegisteredException();
         // Throw an error if display name is already in use
-        if (displayNameInUse(displayName)) throw new InvalidDisplayNameException();
+        if (DISPLAY_NAME.inUse(displayName)) throw new InvalidDisplayNameException();
         // Create a new user
-        Document roleDocument = createDocument(connection, displayName);
+        Document roleDocument = new Document();
+        DISPLAY_NAME.writeDocument(roleDocument, displayName);
+        if (connection != null)
+            IDENTIFIERS.writeDocument(roleDocument, connection);
+        else
+            IDENTIFIERS.writeDocument(roleDocument);
+        PARENT_ROLES.writeDocument(roleDocument);
         roleDocument.append(PERMISSIONS, new ArrayList<String>());
         roleDocument.append(COLOR, color);
         // Insert into database
@@ -46,16 +60,11 @@ public class RoleHandler extends RolesHandler {
     }
 
     public boolean register(@NotNull String displayName, int color) throws InvalidDisplayNameException {
-        // Throw an error if display name is already in use
-        if (displayNameInUse(displayName)) throw new InvalidDisplayNameException();
-        // Create a new user
-        Document roleDocument = createDocument(displayName);
-        roleDocument.append(PERMISSIONS, new String[0]);
-        roleDocument.append(COLOR, color);
-        // Insert into database
-        InsertOneResult result = insert(roleDocument);
-        // Return role
-        return result.wasAcknowledged();
+        try {
+            return register(null, displayName, color);
+        } catch (RecordAlreadyRegisteredException e) {
+            return false;
+        }
     }
 
     /**
@@ -100,8 +109,8 @@ public class RoleHandler extends RolesHandler {
     public boolean addPermission(Bson filter, String permission) throws NotRegisteredException {
         UpdateResult result = addArrayValue(filter, PERMISSIONS, permission);
         if (result.getModifiedCount() > 0) {
-            List<Identifier> roleIdentifiers = getIdentifiers(filter);
-            Main.LISTENERS.onRolePermissionUpdate(roleIdentifiers, permission, true);
+            List<Identifier> roleIdentifiers = IDENTIFIERS.getAll(filter);
+            Mainframe.Events.onRolePermissionUpdate(roleIdentifiers, permission, true);
             return true;
         }
         return false;
@@ -110,19 +119,19 @@ public class RoleHandler extends RolesHandler {
     public boolean removePermission(Bson filter, String permission) throws NotRegisteredException {
         UpdateResult result = pullArrayValue(filter, PERMISSIONS, permission);
         if (result.getModifiedCount() > 0) {
-            List<Identifier> roleIdentifiers = getIdentifiers(filter);
-            Main.LISTENERS.onRolePermissionUpdate(roleIdentifiers, permission, false);
+            List<Identifier> roleIdentifiers = IDENTIFIERS.getAll(filter);
+            Mainframe.Events.onRolePermissionUpdate(roleIdentifiers, permission, false);
             return true;
         }
         return false;
     }
 
     public boolean addParentRole(Bson filter, Identifier parentRoleIdentifier) throws NotRegisteredException {
-        if (addRole(filter, parentRoleIdentifier)) {
-            List<Identifier> roleIdentifiers = getIdentifiers(filter);
-            List<Identifier> parentRoleIdentifiers = getIdentifiers(getFilter(parentRoleIdentifier));
+        if (PARENT_ROLES.add(filter, parentRoleIdentifier)) {
+            List<Identifier> roleIdentifiers = IDENTIFIERS.getAll(filter);
+            List<Identifier> parentRoleIdentifiers = IDENTIFIERS.getAll(IDENTIFIERS.getFilter(parentRoleIdentifier));
             // Execute update event
-            Main.LISTENERS.onRoleParentUpdate(roleIdentifiers, parentRoleIdentifiers, true);
+            Mainframe.Events.onRoleParentUpdate(roleIdentifiers, parentRoleIdentifiers, true);
             // Reload value
             return true;
         }
@@ -130,35 +139,42 @@ public class RoleHandler extends RolesHandler {
     }
 
     public boolean removeParentRole(Bson filter, Identifier parentRoleIdentifier) throws NotRegisteredException {
-        if (removeRole(filter, parentRoleIdentifier)) {
-            List<Identifier> roleIdentifiers = getIdentifiers(filter);
-            List<Identifier> parentRoleIdentifiers = getIdentifiers(getFilter(parentRoleIdentifier));
+        if (PARENT_ROLES.remove(filter, parentRoleIdentifier)) {
+            List<Identifier> roleIdentifiers = IDENTIFIERS.getAll(filter);
+            List<Identifier> parentRoleIdentifiers = IDENTIFIERS.getAll(IDENTIFIERS.getFilter(parentRoleIdentifier));
             // Execute update event
-            Main.LISTENERS.onRoleParentUpdate(roleIdentifiers, parentRoleIdentifiers, false);
+            Mainframe.Events.onRoleParentUpdate(roleIdentifiers, parentRoleIdentifiers, false);
             // Reload value
             return true;
         }
         return false;
     }
 
-    public boolean addConnection(Bson filter, Identifier connectionIdentifier) throws NotRegisteredException, RecordAlreadyConnectedException, RecordAlreadyRegisteredException {
-        if (super.addIdentifier(filter, connectionIdentifier)) {
+    public boolean addLink(Bson filter, Identifier connectionIdentifier) throws NotRegisteredException, RecordAlreadyConnectedException, RecordAlreadyRegisteredException {
+        if (IDENTIFIERS.add(filter, connectionIdentifier)) {
             // Execute update event
-            List<Identifier> roleIdentifiers = getIdentifiers(filter);
-            Main.LISTENERS.onUserConnectionUpdate(roleIdentifiers, connectionIdentifier, true);
+            List<Identifier> roleIdentifiers = IDENTIFIERS.getAll(filter);
+            Mainframe.Events.onUserConnectionUpdate(roleIdentifiers, connectionIdentifier, true);
             return true;
         }
         return false;
     }
 
-    public boolean removeConnection(Bson filter, Identifier connectionIdentifier) throws NotRegisteredException {
-        if (super.removeIdentifier(filter, connectionIdentifier)) {
+    public boolean removeLink(Bson filter, Identifier connectionIdentifier) throws NotRegisteredException {
+        if (IDENTIFIERS.remove(filter, connectionIdentifier)) {
             // Execute update event
-            List<Identifier> roleIdentifiers = getIdentifiers(filter);
-            Main.LISTENERS.onUserConnectionUpdate(roleIdentifiers, connectionIdentifier, false);
+            List<Identifier> roleIdentifiers = IDENTIFIERS.getAll(filter);
+            Mainframe.Events.onUserConnectionUpdate(roleIdentifiers, connectionIdentifier, false);
             return true;
         }
         return false;
     }
 
+    public Bson getFilter(String name) {
+        return DISPLAY_NAME.getFilter(name);
+    }
+
+    public Bson getFilter(Identifier identifier) {
+        return IDENTIFIERS.getFilter(identifier);
+    }
 }

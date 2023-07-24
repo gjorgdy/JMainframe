@@ -1,9 +1,17 @@
 plugins {
     id("java")
+    id("com.github.johnrengelman.shadow") version "7.1.0"
 }
 
 group = "nl.gjorgdy"
 version = "1.0-SNAPSHOT"
+
+tasks.jar {
+    manifest {
+        attributes["Main-Class"] = "nl.gjorgdy.Mainframe"
+    }
+}
+
 
 repositories {
     mavenCentral()
@@ -18,6 +26,8 @@ dependencies {
     implementation("org.apache.logging.log4j:log4j-api:2.20.0")
     implementation("org.apache.logging.log4j:log4j-core:2.20.0")
     implementation("org.apache.logging.log4j:log4j-slf4j-impl:2.20.0")
+    // DOTENV config
+    implementation("io.github.cdimascio:dotenv-java:2.2.0")
 }
 
 tasks.test {
