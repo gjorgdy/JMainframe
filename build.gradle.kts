@@ -28,6 +28,9 @@ dependencies {
     implementation("org.apache.logging.log4j:log4j-slf4j-impl:2.20.0")
     // DOTENV config
     implementation("io.github.cdimascio:dotenv-java:2.2.0")
+
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.7.1")
+    testImplementation("org.junit.jupiter:junit-jupiter-engine:5.7.1")
 }
 
 tasks.test {

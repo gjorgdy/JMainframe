@@ -6,7 +6,8 @@ import nl.gjorgdy.database.handlers.RoleHandler;
 import nl.gjorgdy.database.handlers.ServerHandler;
 import nl.gjorgdy.database.handlers.UserHandler;
 import nl.gjorgdy.discord.Discord;
-import nl.gjorgdy.events.Events;
+import nl.gjorgdy.events.handlers.Events;
+import nl.gjorgdy.events.OldEvents;
 
 import java.io.*;
 import java.util.NoSuchElementException;
@@ -20,7 +21,8 @@ public class Mainframe {
     public static ServerHandler SERVERS;
     public static UserHandler USERS;
 // Event listeners
-    public static Events Events;
+    public static OldEvents OldEvents;
+    public static Events EVENT_HANDLERS;
 // Modules
     private final Discord discord;
     // Todo websocket module
@@ -28,14 +30,15 @@ public class Mainframe {
     public static Logger logger = new Logger("Mainframe");
 
     public Mainframe() throws IOException {
+        // Create a Listener instance
+        OldEvents = new OldEvents();
+        EVENT_HANDLERS = new Events();
         // Create a database instance
         mongoDB = new MongoDB();
         CHANNELS = mongoDB.channelHandler;
         ROLES = mongoDB.roleHandler;
         SERVERS = mongoDB.serverHandler;
         USERS = mongoDB.userHandler;
-        // Create a Listener instance
-        Events = new Events();
         // Create a Discord bot instance
         discord = new Discord();
     }

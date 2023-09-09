@@ -110,7 +110,7 @@ public class RoleHandler extends DatabaseHandler {
         UpdateResult result = addArrayValue(filter, PERMISSIONS, permission);
         if (result.getModifiedCount() > 0) {
             List<Identifier> roleIdentifiers = IDENTIFIERS.getAll(filter);
-            Mainframe.Events.onRolePermissionUpdate(roleIdentifiers, permission, true);
+            Mainframe.OldEvents.onRolePermissionUpdate(roleIdentifiers, permission, true);
             return true;
         }
         return false;
@@ -120,7 +120,7 @@ public class RoleHandler extends DatabaseHandler {
         UpdateResult result = pullArrayValue(filter, PERMISSIONS, permission);
         if (result.getModifiedCount() > 0) {
             List<Identifier> roleIdentifiers = IDENTIFIERS.getAll(filter);
-            Mainframe.Events.onRolePermissionUpdate(roleIdentifiers, permission, false);
+            Mainframe.OldEvents.onRolePermissionUpdate(roleIdentifiers, permission, false);
             return true;
         }
         return false;
@@ -131,7 +131,7 @@ public class RoleHandler extends DatabaseHandler {
             List<Identifier> roleIdentifiers = IDENTIFIERS.getAll(filter);
             List<Identifier> parentRoleIdentifiers = IDENTIFIERS.getAll(IDENTIFIERS.getFilter(parentRoleIdentifier));
             // Execute update event
-            Mainframe.Events.onRoleParentUpdate(roleIdentifiers, parentRoleIdentifiers, true);
+            Mainframe.OldEvents.onRoleParentUpdate(roleIdentifiers, parentRoleIdentifiers, true);
             // Reload value
             return true;
         }
@@ -143,7 +143,7 @@ public class RoleHandler extends DatabaseHandler {
             List<Identifier> roleIdentifiers = IDENTIFIERS.getAll(filter);
             List<Identifier> parentRoleIdentifiers = IDENTIFIERS.getAll(IDENTIFIERS.getFilter(parentRoleIdentifier));
             // Execute update event
-            Mainframe.Events.onRoleParentUpdate(roleIdentifiers, parentRoleIdentifiers, false);
+            Mainframe.OldEvents.onRoleParentUpdate(roleIdentifiers, parentRoleIdentifiers, false);
             // Reload value
             return true;
         }
@@ -154,7 +154,7 @@ public class RoleHandler extends DatabaseHandler {
         if (IDENTIFIERS.add(filter, connectionIdentifier)) {
             // Execute update event
             List<Identifier> roleIdentifiers = IDENTIFIERS.getAll(filter);
-            Mainframe.Events.onUserConnectionUpdate(roleIdentifiers, connectionIdentifier, true);
+            Mainframe.OldEvents.onUserConnectionUpdate(roleIdentifiers, connectionIdentifier, true);
             return true;
         }
         return false;
@@ -164,7 +164,7 @@ public class RoleHandler extends DatabaseHandler {
         if (IDENTIFIERS.remove(filter, connectionIdentifier)) {
             // Execute update event
             List<Identifier> roleIdentifiers = IDENTIFIERS.getAll(filter);
-            Mainframe.Events.onUserConnectionUpdate(roleIdentifiers, connectionIdentifier, false);
+            Mainframe.OldEvents.onUserConnectionUpdate(roleIdentifiers, connectionIdentifier, false);
             return true;
         }
         return false;

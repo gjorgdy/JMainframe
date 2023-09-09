@@ -17,7 +17,6 @@ import org.bson.conversions.Bson;
 
 import java.util.Date;
 import java.util.List;
-import java.util.regex.Pattern;
 
 public class UserHandler extends DatabaseHandler {
 
@@ -54,7 +53,7 @@ public class UserHandler extends DatabaseHandler {
         InsertOneResult insertOneResult = insert(userDocument);
         // Send update
         List<Identifier> userIdentifiers = IDENTIFIERS.getAll(IDENTIFIERS.getFilter(userIdentifier));
-        Mainframe.Events.onUserConnectionUpdate(userIdentifiers, userIdentifier, true);
+        Mainframe.OldEvents.onUserConnectionUpdate(userIdentifiers, userIdentifier, true);
         // Return result of insertion
         return insertOneResult.wasAcknowledged();
     }
@@ -73,7 +72,7 @@ public class UserHandler extends DatabaseHandler {
             if (DISPLAY_NAME.set(userFilter, newDisplayName) || forceEvent) {
                 List<Identifier> userIdentifiers = IDENTIFIERS.getAll(userFilter);
                 // Send event
-                Mainframe.Events.onUserDisplayNameUpdate(userIdentifiers, newDisplayName);
+                Mainframe.OldEvents.onUserDisplayNameUpdate(userIdentifiers, newDisplayName);
                 // Return result
                 return true;
             }
@@ -95,7 +94,7 @@ public class UserHandler extends DatabaseHandler {
             if (removed || added) {
                 List<Identifier> userIdentifiers = IDENTIFIERS.getAll(userFilter);
                 List<Identifier> roleIdentifiers = ROLES.getIdentifiers(userFilter);
-                Mainframe.Events.onUserRoleUpdate(userIdentifiers, roleIdentifiers, true);
+                Mainframe.OldEvents.onUserRoleUpdate(userIdentifiers, roleIdentifiers, true);
                 return true;
             }
         } catch (NotRegisteredException e) {
@@ -115,7 +114,7 @@ public class UserHandler extends DatabaseHandler {
             if (ROLES.add(userFilter, roleIdentifierList)) {
                 List<Identifier> userIdentifiers = IDENTIFIERS.getAll(userFilter);
                 List<Identifier> roleIdentifiers = ROLES.getIdentifiers(userFilter);
-                Mainframe.Events.onUserRoleUpdate(userIdentifiers, roleIdentifiers, true);
+                Mainframe.OldEvents.onUserRoleUpdate(userIdentifiers, roleIdentifiers, true);
                 return true;
             }
         } catch (NotRegisteredException e) {
@@ -135,7 +134,7 @@ public class UserHandler extends DatabaseHandler {
             if (ROLES.remove(userFilter, roleIdentifierList)) {
                 List<Identifier> userIdentifiers = IDENTIFIERS.getAll(userFilter);
                 List<Identifier> roleIdentifiers = ROLES.getIdentifiers(userFilter);
-                Mainframe.Events.onUserRoleUpdate(userIdentifiers, roleIdentifiers, false);
+                Mainframe.OldEvents.onUserRoleUpdate(userIdentifiers, roleIdentifiers, false);
                 return true;
             }
         } catch (NotRegisteredException e) {
@@ -149,7 +148,7 @@ public class UserHandler extends DatabaseHandler {
         if (IDENTIFIERS.add(userFilter, connectionIdentifier)) {
             // Execute update event
             List<Identifier> userIdentifiers = IDENTIFIERS.getAll(userFilter);
-            Mainframe.Events.onUserConnectionUpdate(userIdentifiers, connectionIdentifier, true);
+            Mainframe.OldEvents.onUserConnectionUpdate(userIdentifiers, connectionIdentifier, true);
             return true;
         }
         return false;
@@ -159,7 +158,7 @@ public class UserHandler extends DatabaseHandler {
         if (IDENTIFIERS.remove(filter, connectionIdentifier)) {
             // Execute update event
             List<Identifier> userIdentifiers = IDENTIFIERS.getAll(filter);
-            Mainframe.Events.onUserConnectionUpdate(userIdentifiers, connectionIdentifier, false);
+            Mainframe.OldEvents.onUserConnectionUpdate(userIdentifiers, connectionIdentifier, false);
             return true;
         }
         return false;

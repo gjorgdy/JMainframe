@@ -42,7 +42,7 @@ public class Discord {
         }
         logger.log("Started bot");
         // Register Mainframe user listeners
-        Mainframe.Events.addListener(new MainframeUserListener(bot));
+        Mainframe.OldEvents.addListener(new MainframeUserListener(bot));
         // Start loader thread
         new Loader(bot).start();
         // Register command listener

@@ -1,6 +1,5 @@
 package nl.gjorgdy.events;
 
-import com.sun.tools.javac.Main;
 import nl.gjorgdy.Mainframe;
 import nl.gjorgdy.database.identifiers.Identifier;
 
@@ -9,13 +8,13 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public class Events implements UserListener, RoleListener {
+public class OldEvents implements UserListener, RoleListener {
 
     private final List<UserListener> userListeners;
     private final List<RoleListener> roleListeners;
     private final ExecutorService executor;
 
-    public Events() {
+    public OldEvents() {
         userListeners = new ArrayList<>();
         roleListeners = new ArrayList<>();
         executor = Executors.newFixedThreadPool(10);
